@@ -1,0 +1,20 @@
+# Secrets / local config
+.env
+.env.*
+!.env.example
+docker-compose.override.yml
+
+# Build output
+target/
+
+# Editor / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Eclipse / Eclipse-based JDT (e.g. the Java language server)
+.classpath
+.factorypath
+.project
+.settings/
