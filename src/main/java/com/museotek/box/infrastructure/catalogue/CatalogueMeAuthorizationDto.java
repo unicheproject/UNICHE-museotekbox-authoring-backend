@@ -6,7 +6,9 @@ public record CatalogueMeAuthorizationDto(
         String subject,
         boolean platformAdmin,
         List<String> managedOrganisations,
-        List<ProjectMembershipView> projectMemberships
+        List<ProjectMembershipView> projectMemberships,
+        String etag,
+        long ttlSeconds
 ) {
     public record ProjectMembershipView(String projectId, String orgId, String role) {}
 }
