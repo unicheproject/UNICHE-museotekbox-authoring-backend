@@ -2,8 +2,8 @@ package com.museotek.box.web.organisation;
 
 import com.museotek.box.application.organisation.GetOrganisationQuery;
 import com.museotek.box.application.project.CreateProjectUseCase;
-import com.museotek.box.application.project.ListDeletedProjectsForOrgQuery;
-import com.museotek.box.application.project.ListProjectsForOrgQuery;
+import com.museotek.box.application.project.ListDeletedProjectsForOrgPassthroughQuery;
+import com.museotek.box.application.project.ListProjectsForOrgPassthroughQuery;
 import com.museotek.box.infrastructure.catalogue.CatalogueCreateProjectRequest;
 import com.museotek.box.web.project.CreateProjectRequest;
 import com.museotek.box.web.project.ProjectResponse;
@@ -25,14 +25,14 @@ import java.util.UUID;
 public class OrganisationController {
 
     private final GetOrganisationQuery getOrganisationQuery;
-    private final ListProjectsForOrgQuery listProjectsForOrgQuery;
-    private final ListDeletedProjectsForOrgQuery listDeletedProjectsForOrgQuery;
+    private final ListProjectsForOrgPassthroughQuery listProjectsForOrgQuery;
+    private final ListDeletedProjectsForOrgPassthroughQuery listDeletedProjectsForOrgQuery;
     private final CreateProjectUseCase createProjectUseCase;
 
     public OrganisationController(
             GetOrganisationQuery getOrganisationQuery,
-            ListProjectsForOrgQuery listProjectsForOrgQuery,
-            ListDeletedProjectsForOrgQuery listDeletedProjectsForOrgQuery,
+            ListProjectsForOrgPassthroughQuery listProjectsForOrgQuery,
+            ListDeletedProjectsForOrgPassthroughQuery listDeletedProjectsForOrgQuery,
             CreateProjectUseCase createProjectUseCase
     ) {
         this.getOrganisationQuery = getOrganisationQuery;

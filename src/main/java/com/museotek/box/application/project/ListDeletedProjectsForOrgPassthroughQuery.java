@@ -8,15 +8,15 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class ListProjectsForOrgQuery {
+public class ListDeletedProjectsForOrgPassthroughQuery {
 
     private final CatalogueClient catalogueClient;
 
-    public ListProjectsForOrgQuery(CatalogueClient catalogueClient) {
+    public ListDeletedProjectsForOrgPassthroughQuery(CatalogueClient catalogueClient) {
         this.catalogueClient = catalogueClient;
     }
 
     public List<CatalogueProjectDto> execute(UUID orgId) {
-        return catalogueClient.listProjectsForOrg(orgId);
+        return catalogueClient.listDeletedProjectsForOrg(orgId);
     }
 }
