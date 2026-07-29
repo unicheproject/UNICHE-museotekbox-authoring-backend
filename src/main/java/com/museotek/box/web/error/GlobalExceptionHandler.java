@@ -5,7 +5,6 @@ import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -34,7 +33,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorEnvelope handleValidation(MethodArgumentNotValidException e) {
         List<String> details = e.getBindingResult().getFieldErrors().stream()
-                .map(FieldError::toString)
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .toList();
         return new ErrorEnvelope("VALIDATION_ERROR", "Invalid request", details);
     }

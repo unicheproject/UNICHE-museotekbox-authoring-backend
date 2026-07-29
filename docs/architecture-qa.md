@@ -342,10 +342,12 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
 
 `ErrorEnvelope(code, message, details)` — `code` σταθερό string identifier,
 `message` ανθρώπινο μήνυμα, `details` λίστα strings (γεμίζει μόνο στα validation errors,
-ένα string ανά field, με raw `FieldError::toString()` — περιλαμβάνει και το rejected
-value. Σήμερα κανένα DTO δεν έχει sensitive πεδίο (π.χ. password), αλλά το pattern από
-μόνο του είναι επικίνδυνο γενικά — αν ποτέ προστεθεί sensitive πεδίο με validation, αυτό
-θα το εκθέσει ακούσια στο response.
+ένα string ανά field, μορφή `"<field>: <default message>"` — π.χ. `"name: must not be
+blank"`. Σκόπιμα **δεν** χρησιμοποιείται πλέον `FieldError::toString()` (η default
+Spring αναπαράσταση), γιατί αυτή περιλαμβάνει και το rejected value μέσα στο string· η
+τρέχουσα υλοποίηση εκθέτει μόνο το όνομα του field και το validation message, ποτέ την
+τιμή που στάλθηκε — ακόμα κι αν κάποτε προστεθεί sensitive πεδίο (π.χ. password) με
+validation, δεν θα διαρρεύσει στο response.
 
 ### Πώς μεταφράζονται σήμερα
 
@@ -368,13 +370,17 @@ value. Σήμερα κανένα DTO δεν έχει sensitive πεδίο (π.χ
   πετάει `HttpClientErrorException`, την οποία πιάνει ο γενικός `Exception` handler →
   **λάθος 500 αντί για το σωστό status**.
 - **422 (unprocessable entity):** δεν μοντελοποιείται καθόλου.
-- **502/503/504 (Catalogue unreachable/αργό/5xx):** ο `RestClient` δεν έχει
-  ρυθμισμένο connect/read timeout (default JDK `HttpClient`, ουσιαστικά χωρίς timeout
-  αν δεν οριστεί) — ένα κρεμασμένο Catalogue call **μπλοκάρει το request thread επ'
-  αόριστον** αντί να αποτύχει γρήγορα σε 504. Αν το Catalogue απαντήσει με 5xx, δεν
-  υπάρχει `.onStatus()` intercept για αυτό — πέφτει στον γενικό handler → 500 (χάνεται
-  το πραγματικό status/detail του Catalogue, μόνο ένα γενικό "unexpected error"
-  logάρεται/επιστρέφεται).
+- **502/503/504 (Catalogue unreachable/αργό/5xx):** ο `RestClient` έχει πλέον ρητό
+  connect timeout (5s) και read timeout (10s) στο `CatalogueClient` constructor
+  (`JdkClientHttpRequestFactory` πάνω σε explicit `HttpClient`) — ένα κρεμασμένο
+  Catalogue call **δεν μπλοκάρει πια το request thread επ' αόριστον**, αποτυγχάνει σε
+  ~10s. **Παραμένει ανοιχτό** όμως το status code mapping: το timeout exception
+  (`ResourceAccessException`) δεν έχει δικό του `.onStatus()`/handler σήμερα, άρα πέφτει
+  στον γενικό `Exception` handler → **500** αντί για 504. Ομοίως αν το Catalogue
+  απαντήσει με 5xx, δεν υπάρχει `.onStatus()` intercept — πέφτει στον γενικό handler →
+  500 (χάνεται το πραγματικό status/detail του Catalogue, μόνο ένα γενικό "unexpected
+  error" logάρεται/επιστρέφεται). Η αργή απάντηση τώρα αποτυγχάνει γρήγορα· ο σωστός
+  status code (502 vs 503 vs 504 vs upstream status) δεν έχει ακόμα αποφασιστεί/υλοποιηθεί.
 - Αυτά τα τρία σημεία (409/422/502-504) είναι ανοιχτά θέματα, όχι
   υλοποιημένη συμπεριφορά — χρειάζονται ρητή απόφαση πριν προστεθούν οι αντίστοιχοι έλεγχοι.
 
@@ -424,8 +430,9 @@ value. Σήμερα κανένα DTO δεν έχει sensitive πεδίο (π.χ
 2. `ddl-auto=update` σε production — μετάβαση σε Liquibase/Flyway, ή τουλάχιστον `validate`;
 3. Τα defaults του `issuer-uri` και `uniche.catalogue.base-url` δείχνουν σε production —
    να αλλάξουν σε κάτι ασφαλές/άκυρο by default;
-4. 409/422/502/503/504 — ποια ακριβώς σενάρια πρέπει να μπουν, και πώς
-   μεταφράζεται ένα Catalogue 5xx/timeout σε αυτά;
+4. 409/422/502/503/504 status-code mapping — ποια ακριβώς σενάρια πρέπει να μπουν, και
+   ποιο upstream/timeout status μεταφράζεται σε ποιο από αυτά (το hang-forever μέρος
+   λύθηκε, το σωστό status code παραμένει ανοιχτό — βλ. ενότητα 5);
 5. Correlation/tracing id — να προστεθεί, και πού (MDC + log pattern; στο ErrorEnvelope;).
 6. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
 
@@ -436,3 +443,10 @@ value. Σήμερα κανένα DTO δεν έχει sensitive πεδίο (π.χ
   σχήμα~~ — λυμένο διαφορετικά: το filter τυλίγει το `provision()` call σε try/catch
   δικό του, log και συνέχεια του chain· δεν χρειάζεται πια να φτάσει στο
   `GlobalExceptionHandler` (βλ. ενότητα 4).
+- ~~`ErrorEnvelope.details` εκθέτει το rejected value μέσω `FieldError::toString()`~~ —
+  λυμένο: πλέον μόνο `"<field>: <default message>"`, καμία τιμή δεν εμφανίζεται (βλ.
+  ενότητα 5).
+- ~~`CatalogueClient`'s `RestClient` χωρίς connect/read timeout~~ — μερικώς λυμένο: 5s
+  connect / 10s read timeout προστέθηκαν, άρα δεν μπλοκάρει πια το thread επ' αόριστον
+  (βλ. ενότητα 5). Το status-code mapping του resulting timeout παραμένει στο item 4
+  παραπάνω.

@@ -7,9 +7,12 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +21,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class CatalogueClient {
+
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
 
     private final RestClient restClient;
 
@@ -29,8 +35,16 @@ public class CatalogueClient {
     private record CachedAuthorization(CatalogueMeAuthorizationDto dto, Instant expiresAt) {}
 
     public CatalogueClient(@Value("${uniche.catalogue.base-url}") String baseUrl) {
+        // Default JDK HttpClient has no timeout at all if none is set — a hung/slow
+        // Catalogue would otherwise block the request thread indefinitely instead of
+        // failing fast.
+        var requestFactory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build());
+        requestFactory.setReadTimeout(READ_TIMEOUT);
+
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
+                .requestFactory(requestFactory)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
