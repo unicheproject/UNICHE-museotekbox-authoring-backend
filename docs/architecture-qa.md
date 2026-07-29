@@ -296,15 +296,15 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
 - **Θέση στο filter chain:** αμέσως μετά το `BearerTokenAuthenticationFilter` (βλ.
   `SecurityConfig` πάνω) — άρα πριν φτάσει το request στο `DispatcherServlet`/controller.
 - **JWT assumptions:** τα ίδια με το `CurrentPrincipal` (βασίζεται πάνω του).
-- **Πώς αποτυγχάνει / HTTP response:** δεν πιάνει exceptions το ίδιο. Αν το
-  `provisioningService.provision()` πετάξει (π.χ. DB down), το exception διαδίδεται και
-  σταματάει το filter chain — επειδή αυτό συμβαίνει πριν το `DispatcherServlet`, **δεν
-  πιάνεται από το `GlobalExceptionHandler`** (αυτό είναι `@RestControllerAdvice`, ισχύει
-  μόνο για ό,τι φτάνει μέσα από κανονική εκτέλεση controller). Ο client θα πάρει
-  οτιδήποτε default error page/500 δίνει ο embedded Tomcat/Spring Boot's own
-  `ErrorController` — όχι το δικό μας `ErrorEnvelope` JSON σχήμα. Αυτό είναι ένα
-  πραγματικό gap (π.χ. wrap το `provision()` call σε
-  try/catch εδώ, log και συνέχισε το chain χωρίς να μπλοκάρεις το request;).
+- **Πώς αποτυγχάνει / HTTP response:** το filter τυλίγει το
+  `provisioningService.provision()` σε δικό του try/catch — αν πετάξει (π.χ. DB down), το
+  exception καταγράφεται (`log.error`) και ο client δεν το βλέπει καθόλου: το chain
+  συνεχίζει κανονικά. Δεν χρειάζεται να φτάσει ποτέ στο `GlobalExceptionHandler` (που
+  ούτως ή άλλως δεν θα το έπιανε — `@RestControllerAdvice` ισχύει μόνο για ό,τι φτάνει
+  μέσα από κανονική εκτέλεση controller, όχι για filters πριν το `DispatcherServlet`).
+  Σκόπιμη επιλογή: η τοπική γραμμή `User` είναι best-effort mirror που κανένα άλλο
+  feature δεν διαβάζει σήμερα — δεν αξίζει να μπλοκάρει/αποτύχει ένα κατά τα άλλα valid
+  request.
 - **Service accounts:** ρητά παραλείπονται (`if (!isServiceAccount) provision()`) — η
   πλατφόρμα δεν θέλει τοπική γραμμή `User` για κάθε service-account subject κάθε tool,
   μόνο για ανθρώπους.
@@ -312,20 +312,23 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
 ### `JitUserProvisioningService`
 - **Ευθύνη:** idempotent upsert της τοπικής γραμμής `User` keyed by JWT `sub` —
   ανανεώνει email/preferred_username/display_name/lastSeenAt σε κάθε κλήση,
-  `firstSeenAt` μόνο στη δημιουργία. `@Transactional`.
+  `firstSeenAt` μόνο στη δημιουργία. Σκόπιμα **όχι** `@Transactional` (βλ. concurrency
+  παρακάτω).
 - **Θέση στο filter chain:** δεν είναι filter η ίδια — καλείται ΑΠΟ το
   `JitUserProvisioningFilter`.
-- **Πώς αποτυγχάνει / HTTP response:** ίδιο με πάνω (διαδίδεται μέσω του filter, δεν
-  πιάνεται από το `GlobalExceptionHandler`).
-- **Concurrency (⚠️ πραγματικό gap):** το `findBySubject` → `save` είναι ένα
-  check-then-act race. Δύο ταυτόχρονα *πρώτα* requests για το ίδιο νέο subject μπορούν
-  και τα δύο να μην βρουν υπάρχουσα γραμμή, να φτιάξουν νέο `User`, και να προσπαθήσουν
-  να κάνουν save — το unique constraint στο `subject` column θα κάνει reject τον έναν
-  από τους δύο με `DataIntegrityViolationException`, αλλά **αυτό δεν πιάνεται ρητά
-  πουθενά σήμερα** — καταλήγει σαν κάθε άλλο uncaught exception στο filter (δες πάνω).
-  Πρόταση: είτε
-  `INSERT ... ON CONFLICT DO NOTHING` σε επίπεδο query, είτε catch+retry (fetch ξανά) σε
-  `DataIntegrityViolationException` μέσα στο `provision()`.
+- **Πώς αποτυγχάνει / HTTP response:** ίδιο με πάνω — ό,τι exception δεν πιάσει η ίδια
+  εσωτερικά, το πιάνει (και το καταπίνει) το `JitUserProvisioningFilter`.
+- **Concurrency:** το `findBySubject` → `saveAndFlush` είναι ένα check-then-act race — δύο
+  ταυτόχρονα *πρώτα* requests για το ίδιο νέο subject μπορούν και τα δύο να μην βρουν
+  υπάρχουσα γραμμή και να προσπαθήσουν να κάνουν insert. Ο χαμένος πιάνεται εδώ ρητά
+  (`catch (DataIntegrityViolationException)`) και κάνει fallback: re-fetch τη γραμμή που
+  μόλις δημιούργησε ο νικητής και update πάνω σε αυτήν, αντί να αποτύχει το request.
+  Χρειάζεται να **μην** είναι `@Transactional` η μέθοδος γι' αυτό ακριβώς: αν το αρχικό
+  `saveAndFlush` χάσει το race, το Hibernate μαρκάρει το session unusable για
+  οποιοδήποτε άλλο flush· κρατώντας τις δύο προσπάθειες σε ξεχωριστά (per-repository-call)
+  transactions, το fallback save τρέχει σε καθαρό session και πετυχαίνει. Καλυμμένο από
+  τα tests `concurrentFirstRequest_fallsBackToUpdatingWinnerRowOnUniqueConstraintViolation`
+  / `concurrentFirstRequest_secondSaveFailureIsNotSwallowedSilently`.
 
 ---
 
@@ -424,8 +427,12 @@ value. Σήμερα κανένα DTO δεν έχει sensitive πεδίο (π.χ
 4. 409/422/502/503/504 — ποια ακριβώς σενάρια πρέπει να μπουν, και πώς
    μεταφράζεται ένα Catalogue 5xx/timeout σε αυτά;
 5. Correlation/tracing id — να προστεθεί, και πού (MDC + log pattern; στο ErrorEnvelope;).
-6. Race condition στο `JitUserProvisioningService.provision()` σε ταυτόχρονα πρώτα
-   requests — χρειάζεται fix (ON CONFLICT ή catch+retry) πριν θεωρηθεί "καλυμμένο".
-7. Exception μέσα στο `JitUserProvisioningFilter`/`GlobalExceptionHandler` gap — filter
-   chain exceptions δεν παίρνουν το `ErrorEnvelope` σχήμα σήμερα.
-8. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
+6. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
+
+**Λυμένα:**
+- ~~Race condition στο `JitUserProvisioningService.provision()`~~ — λυμένο: όχι πλέον
+  `@Transactional`, catch+retry στο `DataIntegrityViolationException` (βλ. ενότητα 4).
+- ~~Exception μέσα στο `JitUserProvisioningFilter` δεν παίρνει το `ErrorEnvelope`
+  σχήμα~~ — λυμένο διαφορετικά: το filter τυλίγει το `provision()` call σε try/catch
+  δικό του, log και συνέχεια του chain· δεν χρειάζεται πια να φτάσει στο
+  `GlobalExceptionHandler` (βλ. ενότητα 4).

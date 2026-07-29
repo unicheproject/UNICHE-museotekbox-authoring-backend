@@ -75,20 +75,16 @@ class JitUserProvisioningFilterTest {
     }
 
     @Test
-    void provisioningFailure_propagatesAndAbortsChain() throws Exception {
-        // Documents the current gap: a DB failure during JIT provisioning is not caught
-        // here, so it never reaches GlobalExceptionHandler's ErrorEnvelope shape — it
-        // propagates straight out of the filter chain.
+    void provisioningFailure_isSwallowedAndChainStillContinues() throws Exception {
+        // Provisioning is best-effort: nothing else in the app depends on the local
+        // User row, so a failure here (e.g. DB down) must never block or fail an
+        // otherwise-valid request.
         Jwt token = jwt("user-1", "alice");
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(token));
         doThrow(new RuntimeException("db down")).when(provisioningService).provision(token);
 
-        try {
-            filter.doFilter(request, response, chain);
-            org.assertj.core.api.Assertions.fail("expected the provisioning failure to propagate");
-        } catch (RuntimeException expected) {
-            org.assertj.core.api.Assertions.assertThat(expected).hasMessage("db down");
-        }
-        verify(chain, never()).doFilter(request, response);
+        filter.doFilter(request, response, chain);
+
+        verify(chain).doFilter(request, response);
     }
 }
