@@ -2,9 +2,13 @@ package com.museotek.box.web.error;
 
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
+import com.museotek.box.infrastructure.logging.CorrelationIdFilter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -56,13 +60,33 @@ class GlobalExceptionHandlerTest {
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
+    @BeforeEach
+    void seedCorrelationId() {
+        MDC.put(CorrelationIdFilter.MDC_KEY, "test-request-id");
+    }
+
+    @AfterEach
+    void clearCorrelationId() {
+        MDC.remove(CorrelationIdFilter.MDC_KEY);
+    }
+
     @Test
     void catalogueNotFoundException_mapsTo404WithNotFoundCode() throws Exception {
         mockMvc.perform(get("/test/not-found"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value("Project not found or not accessible: 123"))
-                .andExpect(jsonPath("$.details").isEmpty());
+                .andExpect(jsonPath("$.details").isEmpty())
+                .andExpect(jsonPath("$.requestId").value("test-request-id"));
+    }
+
+    @Test
+    void noCorrelationIdInMdc_requestIdIsNullInResponse() throws Exception {
+        MDC.remove(CorrelationIdFilter.MDC_KEY);
+
+        mockMvc.perform(get("/test/not-found"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.requestId").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

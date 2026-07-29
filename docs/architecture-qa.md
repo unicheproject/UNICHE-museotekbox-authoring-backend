@@ -330,6 +330,24 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
   τα tests `concurrentFirstRequest_fallsBackToUpdatingWinnerRowOnUniqueConstraintViolation`
   / `concurrentFirstRequest_secondSaveFailureIsNotSwallowedSilently`.
 
+### `CorrelationIdFilter`
+- **Ευθύνη:** δίνει σε κάθε request ένα correlation id — χρησιμοποιεί το `X-Request-Id`
+  header αν το στείλει ο client, αλλιώς φτιάχνει νέο `UUID`· το βάζει σε `MDC` (key
+  `requestId`) και το επιστρέφει πάντα ως response header.
+- **Θέση στο filter chain:** `@Order(Ordered.HIGHEST_PRECEDENCE)` — τρέχει **πρώτο από
+  όλα**, πριν καν το Spring Security δικό του filter chain, ώστε ΚΑΙ τα logs που βγάζει
+  το ίδιο το Spring Security (π.χ. σε ένα άκυρο token) να έχουν το ίδιο id.
+- **Δεν είναι** ούτε `infrastructure/security`, γιατί δεν κάνει authentication/
+  authorization — ζει στο δικό του package `infrastructure/logging`, ονομασμένο από τον
+  σκοπό του (όχι `infrastructure/web`, που θα συγκρουόταν με το top-level `web/` — αυτό
+  εννοεί κάτι διαφορετικό, το inbound HTTP business layer των controllers).
+- **Cleanup:** το `MDC.remove(...)` γίνεται σε `finally`, ρητά, επειδή τα servlet threads
+  είναι pooled — χωρίς αυτό, ένα thread θα μπορούσε να logάρει ένα επόμενο, άσχετο
+  request κάτω από παλιό id.
+- **Πώς αποτυγχάνει:** δεν πιάνει exceptions από το `chain.doFilter(...)` το ίδιο (αυτό
+  θα σκότωνε το real error) — μόνο εγγυάται ότι το MDC καθαρίζει ακόμα κι όταν το chain
+  πετάξει.
+
 ---
 
 ## 5. Error handling
@@ -386,16 +404,26 @@ validation, δεν θα διαρρεύσει στο response.
 
 ### Logging
 
-Σήμερα μόνο ο γενικός catch-all handler κάνει `log.error("Unhandled exception", e)`
-(πλήρες stack trace, χωρίς redaction, χωρίς request id). Τα ειδικά mapped exceptions
-(404/403/400) δεν logάρονται καθόλου σήμερα — λογικό για 404/400 (αναμενόμενη κίνηση),
-αλλά το 403 (forbidden) πιθανώς αξίζει logging για security auditing.
+Ο γενικός catch-all handler κάνει `log.error("Unhandled exception", e)` (πλήρες stack
+trace, χωρίς redaction). Το `CatalogueForbiddenException` handler κάνει πλέον
+`log.warn("Forbidden: {}", ...)` — security-audit trail για 403. Τα 404/400 παραμένουν
+χωρίς logging, σκόπιμα (αναμενόμενη κίνηση, όχι κάτι ασυνήθιστο).
 
 ### Correlation / tracing
 
-**Δεν υπάρχει τίποτα υλοποιημένο σήμερα** — κανένα request-id/trace-id στο
-`ErrorEnvelope`, κανένα MDC, καμία distributed tracing βιβλιοθήκη στο classpath
-(δεν υπάρχει Micrometer Tracing). Το Actuator εκθέτει μόνο `health,info`.
+**Request-id υπάρχει πλέον, distributed tracing όχι.** `CorrelationIdFilter`
+(`infrastructure/logging`, `@Order(HIGHEST_PRECEDENCE)` — τρέχει πριν από ΟΛΟ το chain,
+ακόμα και πριν το Spring Security's δικό του): διαβάζει το `X-Request-Id` header αν
+υπάρχει, αλλιώς φτιάχνει ένα νέο `UUID`, το βάζει σε `MDC` (καθαρίζεται σε `finally`,
+γιατί τα servlet threads είναι pooled/επαναχρησιμοποιούνται) και το επιστρέφει πάντα ως
+response header. Το `logging.pattern.level` property injects το `%X{requestId}` σε κάθε
+log line. Το `GlobalExceptionHandler` διαβάζει το ίδιο MDC value και το βάζει στο
+`ErrorEnvelope.requestId` — οπότε ένα error response και τα logs του ίδιου request
+μπορούν να συνδεθούν με το ίδιο id, χωρίς να χρειάζεται καμία distributed tracing
+βιβλιοθήκη. **Δεν υπάρχει ακόμα** πραγματική distributed tracing (καμία Micrometer
+Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρειαστεί μόνο αν/όταν
+χρειαστεί να συνδεθεί ένα request cross-service (π.χ. μέχρι το Catalogue). Το Actuator
+εκθέτει ακόμα μόνο `health,info`.
 
 ---
 
@@ -416,11 +444,12 @@ validation, δεν θα διαρρεύσει στο response.
 | `spring.jpa.properties.hibernate.dialect` | SQL dialect | Πρέπει να ταιριάζει με τη DB | `PostgreSQLDialect` (hardcoded) | Όλα                                                                                                                                                                          | Ναι | Όχι | — |
 | `spring.jpa.properties.hibernate.format_sql` | Pretty-print SQL όταν είναι ενεργό το show-sql | Αναγνωσιμότητα σε dev | `true` | Αδιάφορο (no-op αν show-sql=false)                                                                                                                                           | Ναι, όπως είναι | Όχι | — |
 | `spring.security.oauth2.resourceserver.jwt.issuer-uri` | Ποιο Keycloak realm εκδίδει έμπιστα tokens | Θεμέλιο της αυθεντικοποίησης | `https://idp.uniche-eccch.eu/realms/uniche` (**το πραγματικό production URL**) |                                                                                                                                                                              | **Ναι, πάντα ρητά** | Όχι (public URL) | Κανένα σήμερα |
-| `uniche.catalogue.base-url` | Ποιο Catalogue instance καλείται | Θεμέλιο του org/project/authorization integration | `https://catalogue.uniche-eccch.eu` (**production**) | Ίδιο ρίσκο με πάνω — default σιωπηλά δείχνει σε production Catalogue                                                                                                         | **Ναι, πάντα ρητά** | Όχι | Κανένα σήμερα |
+| `uniche.catalogue.base-url` | Ποιο Catalogue instance καλείται | Θεμέλιο του org/project/authorization integration | κενό (**όχι πλέον production URL**) | Δεν δείχνει πια σιωπηλά σε production — αν δεν οριστεί ρητά, ο `CatalogueClient` απλά θα αποτύχει στην πρώτη πραγματική κλήση (`baseUrl("")`), όχι σε παραπλανητικό "λειτουργεί κανονικά" | **Ναι, πάντα ρητά** | Όχι | Κανένα ακόμα στο startup — αποτυγχάνει lazily στην πρώτη κλήση, όχι fail-fast στο boot |
 | `uniche.tool.slug` | (προορίζεται να δηλώνει το tool slug αυτού του backend στην πλατφόρμα) | — | `museotek-box` | —                                                                                                                                                                            | — | Όχι | **σήμερα dead config**: δηλώνεται στο properties αλλά δεν γίνεται `@Value`-inject πουθενά στον κώδικα |
 | `museotek.cors.allowed-origins` | Ποια origins επιτρέπονται (CORS) | Το Vue frontend πρέπει να μπορεί να καλέσει το API από browser | `http://localhost:5173` (Vite dev) | Μόνο local dev                                                                                                                                                               | **Ναι, πάντα ρητά ανά environment** | Όχι | Κανένα — δεν ελέγχεται π.χ. format (scheme/trailing slash), λάθος τιμή αποτυγχάνει σιωπηλά μόνο στο runtime browser request, όχι στο startup |
 | `springdoc.api-docs.path` / `springdoc.swagger-ui.path` / `springdoc.swagger-ui.try-it-out-enabled` | Πού ζει το OpenAPI JSON / Swagger UI, αν επιτρέπεται live "try it out" | Dev/QA convenience, API contract visibility | `/api-docs`, `/swagger-ui.html`, `true` | Ίδιο σε όλα τα environments σήμερα — **ανοιχτό θέμα**: αυτά είναι `permitAll()` στο `SecurityConfig`, άρα ολόκληρο το API schema είναι δημόσια ορατό ακόμα και σε production | Απόφαση εκκρεμεί | Όχι | — |
 | `management.endpoints.web.exposure.include` | Ποια actuator endpoints εκτίθενται | Ops/monitoring χωρίς να εκτεθούν επικίνδυνα endpoints (`env`, `beans`, `heapdump`) | `health,info` (σωστά συντηρητικό) | Όλα — σκόπιμα fixed, όχι per-environment axis (είναι security control)                                                                                                       | Ναι, όπως είναι | Όχι | — |
+| `logging.pattern.level` | Injects το `%X{requestId}` (MDC, βλ. `CorrelationIdFilter` στην ενότητα 4) σε κάθε log line | Log-to-request correlation χωρίς distributed tracing | `%5p [reqId=%X{requestId}]` (hardcoded) | Όλα | Ναι, όπως είναι | Όχι | — |
 
 ---
 
@@ -428,13 +457,15 @@ validation, δεν θα διαρρεύσει στο response.
 
 1. Swagger UI/OpenAPI public σε production — ναι/όχι, ή περιορισμένο;
 2. `ddl-auto=update` σε production — μετάβαση σε Liquibase/Flyway, ή τουλάχιστον `validate`;
-3. Τα defaults του `issuer-uri` και `uniche.catalogue.base-url` δείχνουν σε production —
-   να αλλάξουν σε κάτι ασφαλές/άκυρο by default;
+3. Το default του `issuer-uri` δείχνει ακόμα σε production — να αλλάξει σε κάτι
+   ασφαλές/άκυρο by default (το `uniche.catalogue.base-url` έγινε ήδη κενό, βλ. Λυμένα).
 4. 409/422/502/503/504 status-code mapping — ποια ακριβώς σενάρια πρέπει να μπουν, και
    ποιο upstream/timeout status μεταφράζεται σε ποιο από αυτά (το hang-forever μέρος
    λύθηκε, το σωστό status code παραμένει ανοιχτό — βλ. ενότητα 5);
-5. Correlation/tracing id — να προστεθεί, και πού (MDC + log pattern; στο ErrorEnvelope;).
-6. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
+5. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
+6. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
+   χρειαστεί να συνδεθεί ένα request cross-service· το request-id correlation (βλ.
+   ενότητα 5) καλύπτει το single-service use case ήδη.
 
 **Λυμένα:**
 - ~~Race condition στο `JitUserProvisioningService.provision()`~~ — λυμένο: όχι πλέον
@@ -450,3 +481,9 @@ validation, δεν θα διαρρεύσει στο response.
   connect / 10s read timeout προστέθηκαν, άρα δεν μπλοκάρει πια το thread επ' αόριστον
   (βλ. ενότητα 5). Το status-code mapping του resulting timeout παραμένει στο item 4
   παραπάνω.
+- ~~Κανένα request-id/correlation~~ — λυμένο: `CorrelationIdFilter` (βλ. ενότητα 4) +
+  `logging.pattern.level` (βλ. ενότητα 6) + `ErrorEnvelope.requestId` (βλ. ενότητα 5).
+- ~~`uniche.catalogue.base-url` default δείχνει σε production~~ — λυμένο: πλέον κενό
+  default (βλ. ενότητα 6). `issuer-uri` παραμένει στο item 3 παραπάνω — δεν άλλαξε.
+- ~~403 (forbidden) δεν logάρεται~~ — λυμένο: `GlobalExceptionHandler.handleForbidden`
+  κάνει πλέον `log.warn` (βλ. ενότητα 5).
