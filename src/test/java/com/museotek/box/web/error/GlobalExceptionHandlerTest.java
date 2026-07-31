@@ -1,7 +1,11 @@
 package com.museotek.box.web.error;
 
+import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
+import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
+import com.museotek.box.infrastructure.catalogue.CatalogueTimeoutException;
+import com.museotek.box.infrastructure.catalogue.CatalogueUnavailableException;
 import com.museotek.box.infrastructure.logging.CorrelationIdFilter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -41,6 +45,26 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/forbidden")
         void forbidden() {
             throw new CatalogueForbiddenException("Not a manager of organisation: 456");
+        }
+
+        @GetMapping("/conflict")
+        void conflict() {
+            throw new CatalogueConflictException("The Catalogue reported a conflict for POST /api/v1/organisations/1/projects");
+        }
+
+        @GetMapping("/timeout")
+        void timeout() {
+            throw new CatalogueTimeoutException("The Catalogue did not respond in time");
+        }
+
+        @GetMapping("/unavailable")
+        void unavailable() {
+            throw new CatalogueUnavailableException("The Catalogue could not be reached");
+        }
+
+        @GetMapping("/bad-response")
+        void badResponse() {
+            throw new CatalogueBadResponseException("The Catalogue rejected GET /api/v1/projects/1 with status 418");
         }
 
         @GetMapping("/boom")
@@ -95,6 +119,34 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"))
                 .andExpect(jsonPath("$.message").value("Not a manager of organisation: 456"));
+    }
+
+    @Test
+    void catalogueConflictException_mapsTo409WithConflictCode() throws Exception {
+        mockMvc.perform(get("/test/conflict"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
+    }
+
+    @Test
+    void catalogueTimeoutException_mapsTo504WithUpstreamTimeoutCode() throws Exception {
+        mockMvc.perform(get("/test/timeout"))
+                .andExpect(status().isGatewayTimeout())
+                .andExpect(jsonPath("$.code").value("UPSTREAM_TIMEOUT"));
+    }
+
+    @Test
+    void catalogueUnavailableException_mapsTo503WithUpstreamUnavailableCode() throws Exception {
+        mockMvc.perform(get("/test/unavailable"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("UPSTREAM_UNAVAILABLE"));
+    }
+
+    @Test
+    void catalogueBadResponseException_mapsTo502WithUpstreamInvalidResponseCode() throws Exception {
+        mockMvc.perform(get("/test/bad-response"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("UPSTREAM_INVALID_RESPONSE"));
     }
 
     @Test

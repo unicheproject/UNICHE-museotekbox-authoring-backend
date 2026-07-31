@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.client.HttpServerErrorException;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -109,18 +108,82 @@ class CatalogueClientTest {
     }
 
     @Test
-    void getProject_500_propagatesAsRawHttpServerErrorException() throws Exception {
-        // Documents the current gap: 5xx from Catalogue has no .onStatus() mapping, so it
-        // surfaces as Spring's raw exception type rather than a dedicated domain exception
-        // — GlobalExceptionHandler's catch-all then turns this into a generic 500 that
-        // loses the real Catalogue status/detail (see docs/architecture-qa.md, section 5).
+    void getProject_503_mapsToCatalogueUnavailableException() throws Exception {
         UUID id = UUID.randomUUID();
         server.createContext("/api/v1/projects/" + id, exchange -> respondJson(exchange, 503, Map.of("error", "unavailable")));
         server.start();
         authenticateAs("user-1");
 
         assertThatThrownBy(() -> client().getProject(id))
-                .isInstanceOf(HttpServerErrorException.class);
+                .isInstanceOf(CatalogueUnavailableException.class);
+    }
+
+    @Test
+    void createProject_409_mapsToCatalogueConflictException() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        server.createContext("/api/v1/organisations/" + orgId + "/projects", exchange -> {
+            if ("POST".equals(exchange.getRequestMethod())) {
+                respondJson(exchange, 409, Map.of("error", "conflict"));
+            }
+        });
+        server.start();
+        authenticateAs("user-1");
+
+        CatalogueCreateProjectRequest request = new CatalogueCreateProjectRequest("Wing", "wing", "museotek-box");
+        assertThatThrownBy(() -> client().createProject(orgId, request))
+                .isInstanceOf(CatalogueConflictException.class);
+    }
+
+    @Test
+    void createProject_toolNotFound_mapsToCatalogueNotFoundException() throws Exception {
+        // Regression test for the toolSlug mismatch bug: createProject previously only mapped 403,
+        // so a 404 (unrecognised toolSlug) leaked as a raw HttpClientErrorException instead of a
+        // clean domain exception. The status handler is now registered once for every call.
+        UUID orgId = UUID.randomUUID();
+        server.createContext("/api/v1/organisations/" + orgId + "/projects", exchange -> {
+            if ("POST".equals(exchange.getRequestMethod())) {
+                respondJson(exchange, 404, Map.of("code", "NOT_FOUND", "message", "Authoring tool not found"));
+            }
+        });
+        server.start();
+        authenticateAs("user-1");
+
+        CatalogueCreateProjectRequest request = new CatalogueCreateProjectRequest("Wing", "wing", "not-a-real-tool");
+        assertThatThrownBy(() -> client().createProject(orgId, request))
+                .isInstanceOf(CatalogueNotFoundException.class);
+    }
+
+    @Test
+    void getProject_408_mapsToCatalogueTimeoutException() throws Exception {
+        UUID id = UUID.randomUUID();
+        server.createContext("/api/v1/projects/" + id, exchange -> respondJson(exchange, 408, Map.of("error", "timeout")));
+        server.start();
+        authenticateAs("user-1");
+
+        assertThatThrownBy(() -> client().getProject(id))
+                .isInstanceOf(CatalogueTimeoutException.class);
+    }
+
+    @Test
+    void getProject_unexpected4xx_mapsToCatalogueBadResponseException() throws Exception {
+        UUID id = UUID.randomUUID();
+        server.createContext("/api/v1/projects/" + id, exchange -> respondJson(exchange, 418, Map.of("error", "teapot")));
+        server.start();
+        authenticateAs("user-1");
+
+        assertThatThrownBy(() -> client().getProject(id))
+                .isInstanceOf(CatalogueBadResponseException.class);
+    }
+
+    @Test
+    void getProject_connectionRefused_mapsToCatalogueUnavailableException() {
+        // No server started at all — the RestClient never receives a status code, so this
+        // exercises the transport-failure path (ResourceAccessException) rather than mapError().
+        authenticateAs("user-1");
+        CatalogueClient client = new CatalogueClient("http://localhost:1");
+
+        assertThatThrownBy(() -> client.getProject(UUID.randomUUID()))
+                .isInstanceOf(CatalogueUnavailableException.class);
     }
 
     @Test

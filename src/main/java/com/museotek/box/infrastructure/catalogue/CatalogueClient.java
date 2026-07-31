@@ -1,26 +1,37 @@
 package com.museotek.box.infrastructure.catalogue;
 
 import com.museotek.box.infrastructure.security.CurrentPrincipal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
+import java.io.IOException;
 import java.net.http.HttpClient;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 @Component
 public class CatalogueClient {
+
+    private static final Logger log = LoggerFactory.getLogger(CatalogueClient.class);
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
@@ -46,44 +57,36 @@ public class CatalogueClient {
                 .baseUrl(baseUrl)
                 .requestFactory(requestFactory)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                // Registered once here rather than per call: mapping per method is what let
+                // createProject's 404 (an unrecognised toolSlug) go unmapped and leak a raw
+                // HttpClientErrorException into the catch-all 500 handler.
+                .defaultStatusHandler(HttpStatusCode::isError, CatalogueClient::mapError)
                 .build();
     }
 
     public CatalogueProjectDto getProject(UUID projectId) {
-        return restClient.get()
+        return call(() -> restClient.get()
                 .uri("/api/v1/projects/{id}", projectId)
                 .header(HttpHeaders.AUTHORIZATION, bearer())
                 .retrieve()
-                .onStatus(s -> s.value() == 404, (req, resp) -> {
-                    throw new CatalogueNotFoundException("Project not found or not accessible: " + projectId);
-                })
-                .body(CatalogueProjectDto.class);
+                .body(CatalogueProjectDto.class));
     }
 
     public CatalogueProjectDto createProject(UUID orgId, CatalogueCreateProjectRequest request) {
-        return restClient.post()
+        return call(() -> restClient.post()
                 .uri("/api/v1/organisations/{orgId}/projects", orgId)
                 .header(HttpHeaders.AUTHORIZATION, bearer())
                 .body(request)
                 .retrieve()
-                .onStatus(s -> s.value() == 403, (req, resp) -> {
-                    throw new CatalogueForbiddenException("Not a manager of organisation: " + orgId);
-                })
-                .body(CatalogueProjectDto.class);
+                .body(CatalogueProjectDto.class));
     }
 
     public void deleteProject(UUID projectId) {
-        restClient.delete()
+        call(() -> restClient.delete()
                 .uri("/api/v1/projects/{id}", projectId)
                 .header(HttpHeaders.AUTHORIZATION, bearer())
                 .retrieve()
-                .onStatus(s -> s.value() == 404, (req, resp) -> {
-                    throw new CatalogueNotFoundException("Project not found or not accessible: " + projectId);
-                })
-                .onStatus(s -> s.value() == 403, (req, resp) -> {
-                    throw new CatalogueForbiddenException("Not authorised to delete project: " + projectId);
-                })
-                .toBodilessEntity();
+                .toBodilessEntity());
     }
 
     public CatalogueMeAuthorizationDto getMeAuthorization() {
@@ -96,15 +99,15 @@ public class CatalogueClient {
             return cached.dto();
         }
 
-        var request = restClient.get()
-                .uri("/api/v1/me/authorization")
-                .header(HttpHeaders.AUTHORIZATION, bearer());
-        if (cached != null) {
-            request = request.header(HttpHeaders.IF_NONE_MATCH, cached.dto().etag());
-        }
-
-        ResponseEntity<CatalogueMeAuthorizationDto> response =
-                request.retrieve().toEntity(CatalogueMeAuthorizationDto.class);
+        ResponseEntity<CatalogueMeAuthorizationDto> response = call(() -> {
+            var request = restClient.get()
+                    .uri("/api/v1/me/authorization")
+                    .header(HttpHeaders.AUTHORIZATION, bearer());
+            if (cached != null) {
+                request = request.header(HttpHeaders.IF_NONE_MATCH, cached.dto().etag());
+            }
+            return request.retrieve().toEntity(CatalogueMeAuthorizationDto.class);
+        });
 
         // A 304 means our cached context is still current — Catalogue sends no body for it, so
         // keep the DTO we already have and just extend its expiry.
@@ -117,64 +120,91 @@ public class CatalogueClient {
     }
 
     public List<CatalogueProjectDto> listProjectsForOrg(UUID orgId) {
-        return restClient.get()
+        return call(() -> restClient.get()
                 .uri("/api/v1/organisations/{orgId}/projects", orgId)
                 .header(HttpHeaders.AUTHORIZATION, bearer())
                 .retrieve()
-                .body(new ParameterizedTypeReference<>() {});
+                .body(new ParameterizedTypeReference<List<CatalogueProjectDto>>() {}));
     }
 
     public CatalogueOrganisationDto getOrganisation(UUID orgId) {
-        return restClient.get()
+        return call(() -> restClient.get()
                 .uri("/api/v1/organisations/{orgId}", orgId)
                 .header(HttpHeaders.AUTHORIZATION, bearer())
                 .retrieve()
-                .onStatus(s -> s.value() == 404, (req, resp) -> {
-                    throw new CatalogueNotFoundException("Organisation not found or not accessible: " + orgId);
-                })
-                .body(CatalogueOrganisationDto.class);
+                .body(CatalogueOrganisationDto.class));
     }
 
     // Catalogue's real endpoint is PUT, not PATCH — keep this call as PUT even though our own
     // /api/v1/projects/{id} controller endpoint is exposed as PATCH. Do not "fix" this to PATCH.
     public CatalogueProjectDto updateProject(UUID projectId, CatalogueUpdateProjectRequest request) {
-        return restClient.put()
+        return call(() -> restClient.put()
                 .uri("/api/v1/projects/{id}", projectId)
                 .header(HttpHeaders.AUTHORIZATION, bearer())
                 .body(request)
                 .retrieve()
-                .onStatus(s -> s.value() == 404, (req, resp) -> {
-                    throw new CatalogueNotFoundException("Project not found or not accessible: " + projectId);
-                })
-                .onStatus(s -> s.value() == 403, (req, resp) -> {
-                    throw new CatalogueForbiddenException("Not authorised to update project: " + projectId);
-                })
-                .body(CatalogueProjectDto.class);
+                .body(CatalogueProjectDto.class));
     }
 
     public List<CatalogueProjectDto> listDeletedProjectsForOrg(UUID orgId) {
-        return restClient.get()
+        return call(() -> restClient.get()
                 .uri("/api/v1/organisations/{orgId}/projects/deleted", orgId)
                 .header(HttpHeaders.AUTHORIZATION, bearer())
                 .retrieve()
-                .onStatus(s -> s.value() == 403, (req, resp) -> {
-                    throw new CatalogueForbiddenException("Not authorised to list deleted projects for org: " + orgId);
-                })
-                .body(new ParameterizedTypeReference<>() {});
+                .body(new ParameterizedTypeReference<List<CatalogueProjectDto>>() {}));
     }
 
     public CatalogueProjectDto restoreProject(UUID projectId) {
-        return restClient.post()
+        return call(() -> restClient.post()
                 .uri("/api/v1/projects/{id}/restore", projectId)
                 .header(HttpHeaders.AUTHORIZATION, bearer())
                 .retrieve()
-                .onStatus(s -> s.value() == 404, (req, resp) -> {
-                    throw new CatalogueNotFoundException("Project not found or not accessible: " + projectId);
-                })
-                .onStatus(s -> s.value() == 403, (req, resp) -> {
-                    throw new CatalogueForbiddenException("Not authorised to restore project: " + projectId);
-                })
-                .body(CatalogueProjectDto.class);
+                .body(CatalogueProjectDto.class));
+    }
+
+    /**
+     * Translates transport failures (connection refused, read/connect timeout), which no status
+     * handler can see because no status was ever received.
+     */
+    private <T> T call(Supplier<T> operation) {
+        try {
+            return operation.get();
+        } catch (ResourceAccessException transportFailure) {
+            throw transportFailureOf(transportFailure);
+        }
+    }
+
+    private static RuntimeException transportFailureOf(ResourceAccessException failure) {
+        // A timeout is worth retrying and an outage is worth reporting, so they stay
+        // distinguishable all the way out to 504 vs 503.
+        for (Throwable cause = failure.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof HttpTimeoutException) {
+                return new CatalogueTimeoutException("The Catalogue did not respond in time", failure);
+            }
+        }
+        return new CatalogueUnavailableException("The Catalogue could not be reached", failure);
+    }
+
+    private static void mapError(HttpRequest request, ClientHttpResponse response) throws IOException {
+        int status = response.getStatusCode().value();
+        // The target, never the upstream body: the body may quote values this backend should not repeat.
+        String target = request.getMethod() + " " + request.getURI().getPath();
+        switch (status) {
+            case 403 -> throw new CatalogueForbiddenException("The Catalogue denied " + target);
+            case 404 -> throw new CatalogueNotFoundException("The Catalogue has no accessible resource for " + target);
+            case 409 -> throw new CatalogueConflictException("The Catalogue reported a conflict for " + target);
+            case 408, 504 -> throw new CatalogueTimeoutException("The Catalogue reported a timeout for " + target);
+            default -> {
+                if (response.getStatusCode().is5xxServerError()) {
+                    throw new CatalogueUnavailableException("The Catalogue failed with status " + status + " for " + target);
+                }
+                // Any other 4xx means this backend and the Catalogue disagree about the contract —
+                // most often a token the Catalogue will not accept, a misconfiguration here rather
+                // than something the caller did wrong.
+                log.error("Unexpected Catalogue status {} for {}", status, target);
+                throw new CatalogueBadResponseException("The Catalogue rejected " + target + " with status " + status);
+            }
+        }
     }
 
     private String bearer() {

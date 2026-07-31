@@ -36,16 +36,6 @@ https://springdoc.org compatibility matrix) γιατί δεν ακολουθεί
 2. Το `UNICHEcatalogue` (αδερφό service της πλατφόρμας UNICHE) τρέχει ήδη PostgreSQL —
    για λόγους συνέπειας είναι καλύτερο να τρέχουν το ίδιο σύστημα βάσεων.
 
-### Γιατί Java 21 και όχι Java 25
-
-Το `spring-boot-starter-parent` που χρησιμοποιούμε είναι η 3.4.7. Σταθερή υποστήριξη
-Java 25 υπάρχει μόνο από Spring Boot 4.x (4.0 GA ~Νοέμβριος 2025, 4.1 GA ~Ιούνιος 2026) —
-δηλαδή θα σήμαινε major-version άλμα Spring Boot, όχι απλά bump του JDK. Αυτό
-εξετάστηκε ρητά και αναβλήθηκε ελλείψει πραγματικής ανάγκης αυτή τη στιγμή. Η Java 21
-είναι LTS (υποστήριξη έως αρχές 2030s), άρα δεν υπάρχει πίεση χρόνου να γίνει το άλμα
-τώρα. Όταν αποφασίσουμε να πάμε Spring Boot 4, το JDK bump θα είναι μέρος του ίδιου
-migration, όχι ξεχωριστό commit πριν από αυτό.
-
 ---
 
 ## 2. Authorization & Catalogue
@@ -373,6 +363,10 @@ validation, δεν θα διαρρεύσει στο response.
 |---|---|---|
 | `CatalogueNotFoundException` | 404 | `NOT_FOUND` |
 | `CatalogueForbiddenException` | 403 | `FORBIDDEN` |
+| `CatalogueConflictException` | 409 | `CONFLICT` |
+| `CatalogueTimeoutException` | 504 | `UPSTREAM_TIMEOUT` |
+| `CatalogueUnavailableException` | 503 | `UPSTREAM_UNAVAILABLE` |
+| `CatalogueBadResponseException` | 502 | `UPSTREAM_INVALID_RESPONSE` |
 | `MethodArgumentNotValidException` (bean validation) | 400 | `VALIDATION_ERROR` |
 | οτιδήποτε άλλο (`Exception.class` catch-all) | 500 | `INTERNAL_ERROR` |
 
@@ -380,27 +374,33 @@ validation, δεν θα διαρρεύσει στο response.
 εξ ολοκλήρου του Spring Security OAuth2 resource server (missing/invalid/expired token),
 ξεχωριστός μηχανισμός, δεν περνάει ποτέ από αυτή τη class.
 
-### ⚠️ Codes που δεν έχουν υλοποιηθεί ακόμα (400/401/403/404/409/422/500/502/503/504)
+### `CatalogueClient` — ενιαίο status mapping αντί για ανά-μέθοδο
 
-- **409 (conflict):** δεν μοντελοποιείται καθόλου σήμερα. Αν το Catalogue γυρίσει π.χ.
-  409 για duplicate slug, ο `CatalogueClient` δεν το intercept-άρει ρητά (`.onStatus()`
-  υπάρχει μόνο για 404/403 ανά μέθοδο) — πέφτει στο default `retrieve()` behavior που
-  πετάει `HttpClientErrorException`, την οποία πιάνει ο γενικός `Exception` handler →
-  **λάθος 500 αντί για το σωστό status**.
-- **422 (unprocessable entity):** δεν μοντελοποιείται καθόλου.
-- **502/503/504 (Catalogue unreachable/αργό/5xx):** ο `RestClient` έχει πλέον ρητό
-  connect timeout (5s) και read timeout (10s) στο `CatalogueClient` constructor
-  (`JdkClientHttpRequestFactory` πάνω σε explicit `HttpClient`) — ένα κρεμασμένο
-  Catalogue call **δεν μπλοκάρει πια το request thread επ' αόριστον**, αποτυγχάνει σε
-  ~10s. **Παραμένει ανοιχτό** όμως το status code mapping: το timeout exception
-  (`ResourceAccessException`) δεν έχει δικό του `.onStatus()`/handler σήμερα, άρα πέφτει
-  στον γενικό `Exception` handler → **500** αντί για 504. Ομοίως αν το Catalogue
-  απαντήσει με 5xx, δεν υπάρχει `.onStatus()` intercept — πέφτει στον γενικό handler →
-  500 (χάνεται το πραγματικό status/detail του Catalogue, μόνο ένα γενικό "unexpected
-  error" logάρεται/επιστρέφεται). Η αργή απάντηση τώρα αποτυγχάνει γρήγορα· ο σωστός
-  status code (502 vs 503 vs 504 vs upstream status) δεν έχει ακόμα αποφασιστεί/υλοποιηθεί.
-- Αυτά τα τρία σημεία (409/422/502-504) είναι ανοιχτά θέματα, όχι
-  υλοποιημένη συμπεριφορά — χρειάζονται ρητή απόφαση πριν προστεθούν οι αντίστοιχοι έλεγχοι.
+Ο `CatalogueClient` καταχωρεί πλέον ένα `.defaultStatusHandler(...)` **μία φορά**, στο
+`RestClient.Builder`, αντί για ξεχωριστό `.onStatus()` σε κάθε μέθοδο. Αυτό δεν είναι
+στιλιστική προτίμηση: το ανά-μέθοδο μοντέλο ήταν η ρίζα του πραγματικού bug που έδειξε
+ότι το `createProject` mapάριζε ρητά μόνο το 403 και ξέχναγε το 404 — ένα άκυρο
+`toolSlug` (Catalogue: "Authoring tool not found") διέφευγε σαν raw
+`HttpClientErrorException` στον γενικό `Exception` handler αντί για καθαρό
+`CatalogueNotFoundException`. Ο ενιαίος handler (`mapError`) καλύπτει πλέον κάθε κλήση
+αυτόματα:
+
+- **403 → `CatalogueForbiddenException`**, **404 → `CatalogueNotFoundException`**, **409
+  → `CatalogueConflictException`**, **408/504 → `CatalogueTimeoutException`**.
+- Οποιοδήποτε άλλο 5xx → `CatalogueUnavailableException`· οποιοδήποτε άλλο 4xx (π.χ.
+  token που το Catalogue απορρίπτει) → `CatalogueBadResponseException`, με
+  `log.error` γιατί σημαίνει misconfiguration εδώ, όχι λάθος του caller.
+- Transport-level αποτυχίες (connection refused, connect/read timeout που δεν έφτασε
+  καν σε HTTP status — `ResourceAccessException`) μεταφράζονται ξεχωριστά: αν η αιτία
+  είναι `HttpTimeoutException` → `CatalogueTimeoutException`, αλλιώς →
+  `CatalogueUnavailableException`. Ο διαχωρισμός timeout/unavailable έχει σημασία γιατί
+  ένα timeout αξίζει retry, ενώ ένα outage αξίζει να αναφερθεί.
+
+### ⚠️ Codes που παραμένουν ανοιχτά (422)
+
+- **422 (unprocessable entity):** δεν μοντελοποιείται ακόμα — bean validation
+  errors συνεχίζουν να γυρίζουν 400 (`VALIDATION_ERROR`), δεν έχει αποφασιστεί αν/πότε
+  χρειάζεται ξεχωριστό 422 semantic. Ανοιχτό θέμα, όχι υλοποιημένη συμπεριφορά.
 
 ### Logging
 
@@ -443,13 +443,26 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
 | `spring.jpa.show-sql` | SQL logging στο stdout | Debugging | `false` (hardcoded) | Σωστό για prod· τοπικά flip χειροκίνητα μέσω command-line flag αντί για env var                                                                                              | Ναι, όπως είναι | Όχι | — |
 | `spring.jpa.properties.hibernate.dialect` | SQL dialect | Πρέπει να ταιριάζει με τη DB | `PostgreSQLDialect` (hardcoded) | Όλα                                                                                                                                                                          | Ναι | Όχι | — |
 | `spring.jpa.properties.hibernate.format_sql` | Pretty-print SQL όταν είναι ενεργό το show-sql | Αναγνωσιμότητα σε dev | `true` | Αδιάφορο (no-op αν show-sql=false)                                                                                                                                           | Ναι, όπως είναι | Όχι | — |
-| `spring.security.oauth2.resourceserver.jwt.issuer-uri` | Ποιο Keycloak realm εκδίδει έμπιστα tokens | Θεμέλιο της αυθεντικοποίησης | `https://idp.uniche-eccch.eu/realms/uniche` (**το πραγματικό production URL**) |                                                                                                                                                                              | **Ναι, πάντα ρητά** | Όχι (public URL) | Κανένα σήμερα |
-| `uniche.catalogue.base-url` | Ποιο Catalogue instance καλείται | Θεμέλιο του org/project/authorization integration | κενό (**όχι πλέον production URL**) | Δεν δείχνει πια σιωπηλά σε production — αν δεν οριστεί ρητά, ο `CatalogueClient` απλά θα αποτύχει στην πρώτη πραγματική κλήση (`baseUrl("")`), όχι σε παραπλανητικό "λειτουργεί κανονικά" | **Ναι, πάντα ρητά** | Όχι | Κανένα ακόμα στο startup — αποτυγχάνει lazily στην πρώτη κλήση, όχι fail-fast στο boot |
+| `spring.security.oauth2.resourceserver.jwt.issuer-uri` | Ποιο Keycloak realm εκδίδει έμπιστα tokens | Θεμέλιο της αυθεντικοποίησης | κενό (**όχι πλέον production URL**) | Δεν δείχνει πια σιωπηλά σε production | **Ναι, πάντα ρητά** | Όχι (public URL) | **Fail-fast στο boot**: `RequiredPlatformPropertiesCheck` (`EnvironmentPostProcessor`, βλ. παρακάτω) |
+| `uniche.catalogue.base-url` | Ποιο Catalogue instance καλείται | Θεμέλιο του org/project/authorization integration | κενό (**όχι πλέον production URL**) | Δεν δείχνει πια σιωπηλά σε production | **Ναι, πάντα ρητά** | Όχι | **Fail-fast στο boot**: `RequiredPlatformPropertiesCheck` (`EnvironmentPostProcessor`, βλ. παρακάτω) |
 | `uniche.tool.slug` | (προορίζεται να δηλώνει το tool slug αυτού του backend στην πλατφόρμα) | — | `museotek-box` | —                                                                                                                                                                            | — | Όχι | **σήμερα dead config**: δηλώνεται στο properties αλλά δεν γίνεται `@Value`-inject πουθενά στον κώδικα |
 | `museotek.cors.allowed-origins` | Ποια origins επιτρέπονται (CORS) | Το Vue frontend πρέπει να μπορεί να καλέσει το API από browser | `http://localhost:5173` (Vite dev) | Μόνο local dev                                                                                                                                                               | **Ναι, πάντα ρητά ανά environment** | Όχι | Κανένα — δεν ελέγχεται π.χ. format (scheme/trailing slash), λάθος τιμή αποτυγχάνει σιωπηλά μόνο στο runtime browser request, όχι στο startup |
 | `springdoc.api-docs.path` / `springdoc.swagger-ui.path` / `springdoc.swagger-ui.try-it-out-enabled` | Πού ζει το OpenAPI JSON / Swagger UI, αν επιτρέπεται live "try it out" | Dev/QA convenience, API contract visibility | `/api-docs`, `/swagger-ui.html`, `true` | Ίδιο σε όλα τα environments σήμερα — **ανοιχτό θέμα**: αυτά είναι `permitAll()` στο `SecurityConfig`, άρα ολόκληρο το API schema είναι δημόσια ορατό ακόμα και σε production | Απόφαση εκκρεμεί | Όχι | — |
 | `management.endpoints.web.exposure.include` | Ποια actuator endpoints εκτίθενται | Ops/monitoring χωρίς να εκτεθούν επικίνδυνα endpoints (`env`, `beans`, `heapdump`) | `health,info` (σωστά συντηρητικό) | Όλα — σκόπιμα fixed, όχι per-environment axis (είναι security control)                                                                                                       | Ναι, όπως είναι | Όχι | — |
 | `logging.pattern.level` | Injects το `%X{requestId}` (MDC, βλ. `CorrelationIdFilter` στην ενότητα 4) σε κάθε log line | Log-to-request correlation χωρίς distributed tracing | `%5p [reqId=%X{requestId}]` (hardcoded) | Όλα | Ναι, όπως είναι | Όχι | — |
+
+### `RequiredPlatformPropertiesCheck` — fail-fast στο boot
+
+`infrastructure/config/RequiredPlatformPropertiesCheck` υλοποιεί
+`EnvironmentPostProcessor` και τρέχει **πριν φτιαχτεί οποιοδήποτε bean**, άρα και πριν
+το datasource. Ελέγχει ότι το `issuer-uri` και το `uniche.catalogue.base-url` έχουν μη
+κενή τιμή· αν όχι, πετάει `IllegalStateException` με το όνομα του env var που λείπει.
+Χωρίς αυτό, ένα deployment χωρίς `IDP_ISSUER_URI`/`CATALOGUE_BASE_URL` είτε θα
+αποτύγχανε αργότερα με ένα άσχετο DB μήνυμα (αν η datasource init προηγηθεί), είτε —
+χειρότερα — θα ξεκινούσε κανονικά και θα απέτυχε μόνο lazily, στην πρώτη πραγματική
+κλήση προς Catalogue/Keycloak. Καταχωρείται μέσω
+`META-INF/spring.factories` (το μόνο σημείο του classpath που το Spring Boot διαβάζει
+πριν υπάρχει `ApplicationContext`).
 
 ---
 
@@ -457,13 +470,10 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
 
 1. Swagger UI/OpenAPI public σε production — ναι/όχι, ή περιορισμένο;
 2. `ddl-auto=update` σε production — μετάβαση σε Liquibase/Flyway, ή τουλάχιστον `validate`;
-3. Το default του `issuer-uri` δείχνει ακόμα σε production — να αλλάξει σε κάτι
-   ασφαλές/άκυρο by default (το `uniche.catalogue.base-url` έγινε ήδη κενό, βλ. Λυμένα).
-4. 409/422/502/503/504 status-code mapping — ποια ακριβώς σενάρια πρέπει να μπουν, και
-   ποιο upstream/timeout status μεταφράζεται σε ποιο από αυτά (το hang-forever μέρος
-   λύθηκε, το σωστό status code παραμένει ανοιχτό — βλ. ενότητα 5);
-5. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
-6. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
+3. 422 (unprocessable entity) status-code mapping — δεν έχει αποφασιστεί αν/πότε
+   χρειάζεται ξεχωριστό semantic από το τρέχον 400 `VALIDATION_ERROR` (βλ. ενότητα 5);
+4. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
+5. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
    χρειαστεί να συνδεθεί ένα request cross-service· το request-id correlation (βλ.
    ενότητα 5) καλύπτει το single-service use case ήδη.
 
@@ -484,6 +494,19 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
 - ~~Κανένα request-id/correlation~~ — λυμένο: `CorrelationIdFilter` (βλ. ενότητα 4) +
   `logging.pattern.level` (βλ. ενότητα 6) + `ErrorEnvelope.requestId` (βλ. ενότητα 5).
 - ~~`uniche.catalogue.base-url` default δείχνει σε production~~ — λυμένο: πλέον κενό
-  default (βλ. ενότητα 6). `issuer-uri` παραμένει στο item 3 παραπάνω — δεν άλλαξε.
+  default (βλ. ενότητα 6).
 - ~~403 (forbidden) δεν logάρεται~~ — λυμένο: `GlobalExceptionHandler.handleForbidden`
   κάνει πλέον `log.warn` (βλ. ενότητα 5).
+- ~~Το default του `issuer-uri` δείχνει ακόμα σε production~~ — λυμένο: πλέον κενό
+  default, ίδιο pattern με το `uniche.catalogue.base-url`. Επιπλέον προστέθηκε
+  `RequiredPlatformPropertiesCheck` (`EnvironmentPostProcessor`), που κάνει fail-fast
+  στο boot — πριν από οποιοδήποτε bean — αν λείπει `issuer-uri` ή
+  `uniche.catalogue.base-url` (βλ. ενότητα 6).
+- ~~409/502/503/504 status-code mapping~~ — λυμένο: `CatalogueClient` καταχωρεί πλέον
+  ένα ενιαίο `.defaultStatusHandler(...)` (αντί για ανά-μέθοδο `.onStatus()`, που ήταν
+  η ρίζα του πραγματικού bug στο `createProject`/toolSlug — βλ. ενότητα 5) που
+  μεταφράζει 409 → `CatalogueConflictException`, 408/504 → `CatalogueTimeoutException`,
+  άλλα 5xx → `CatalogueUnavailableException`, άλλα 4xx →
+  `CatalogueBadResponseException`· και transport-level timeouts/outages
+  (`ResourceAccessException` χωρίς καν HTTP status) ξεχωριστά. Το 422 παραμένει στο
+  item 3 παραπάνω — δεν άλλαξε.
