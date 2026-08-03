@@ -6,6 +6,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueTimeoutException;
 import com.museotek.box.infrastructure.catalogue.CatalogueUnavailableException;
+import com.museotek.box.infrastructure.catalogue.CatalogueUnprocessableException;
 import com.museotek.box.infrastructure.logging.CorrelationIdFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +42,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorEnvelope handleConflict(CatalogueConflictException e) {
         return new ErrorEnvelope("CONFLICT", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(CatalogueUnprocessableException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ErrorEnvelope handleUnprocessable(CatalogueUnprocessableException e) {
+        return new ErrorEnvelope("UPSTREAM_VALIDATION_ERROR", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(CatalogueTimeoutException.class)

@@ -175,8 +175,10 @@ public class CatalogueClient {
     }
 
     private static RuntimeException transportFailureOf(ResourceAccessException failure) {
-        // A timeout is worth retrying and an outage is worth reporting, so they stay
-        // distinguishable all the way out to 504 vs 503.
+        // Kept distinguishable all the way out to 504 vs 503: a timeout and an outage are
+        // different failure modes worth different monitoring signals, even though no retry is
+        // implemented on either path yet — this split only enables a future retry-on-timeout,
+        // it doesn't perform one.
         for (Throwable cause = failure.getCause(); cause != null; cause = cause.getCause()) {
             if (cause instanceof HttpTimeoutException) {
                 return new CatalogueTimeoutException("The Catalogue did not respond in time", failure);
@@ -193,6 +195,7 @@ public class CatalogueClient {
             case 403 -> throw new CatalogueForbiddenException("The Catalogue denied " + target);
             case 404 -> throw new CatalogueNotFoundException("The Catalogue has no accessible resource for " + target);
             case 409 -> throw new CatalogueConflictException("The Catalogue reported a conflict for " + target);
+            case 422 -> throw new CatalogueUnprocessableException("The Catalogue rejected " + target + " as semantically invalid");
             case 408, 504 -> throw new CatalogueTimeoutException("The Catalogue reported a timeout for " + target);
             default -> {
                 if (response.getStatusCode().is5xxServerError()) {

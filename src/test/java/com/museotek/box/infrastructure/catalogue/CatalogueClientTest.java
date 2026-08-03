@@ -165,6 +165,17 @@ class CatalogueClientTest {
     }
 
     @Test
+    void getProject_422_mapsToCatalogueUnprocessableException() throws Exception {
+        UUID id = UUID.randomUUID();
+        server.createContext("/api/v1/projects/" + id, exchange -> respondJson(exchange, 422, Map.of("error", "unprocessable")));
+        server.start();
+        authenticateAs("user-1");
+
+        assertThatThrownBy(() -> client().getProject(id))
+                .isInstanceOf(CatalogueUnprocessableException.class);
+    }
+
+    @Test
     void getProject_unexpected4xx_mapsToCatalogueBadResponseException() throws Exception {
         UUID id = UUID.randomUUID();
         server.createContext("/api/v1/projects/" + id, exchange -> respondJson(exchange, 418, Map.of("error", "teapot")));

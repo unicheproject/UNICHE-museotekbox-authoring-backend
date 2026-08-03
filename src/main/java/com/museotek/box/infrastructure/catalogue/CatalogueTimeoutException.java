@@ -2,8 +2,9 @@ package com.museotek.box.infrastructure.catalogue;
 
 /**
  * The Catalogue did not answer within the configured connect/read timeout (or answered 408/504).
- * Distinct from {@link CatalogueUnavailableException} because a timeout is worth retrying and an
- * outage is worth reporting.
+ * Kept distinct from {@link CatalogueUnavailableException} (a genuine outage/other 5xx) so the two
+ * failure modes stay separable in status code and logs — no retry-on-timeout is implemented yet,
+ * this split only leaves room for one later.
  */
 public class CatalogueTimeoutException extends RuntimeException {
     public CatalogueTimeoutException(String message) {

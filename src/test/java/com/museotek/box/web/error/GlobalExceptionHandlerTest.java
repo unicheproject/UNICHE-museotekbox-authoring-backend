@@ -6,6 +6,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueTimeoutException;
 import com.museotek.box.infrastructure.catalogue.CatalogueUnavailableException;
+import com.museotek.box.infrastructure.catalogue.CatalogueUnprocessableException;
 import com.museotek.box.infrastructure.logging.CorrelationIdFilter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -50,6 +51,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/conflict")
         void conflict() {
             throw new CatalogueConflictException("The Catalogue reported a conflict for POST /api/v1/organisations/1/projects");
+        }
+
+        @GetMapping("/unprocessable")
+        void unprocessable() {
+            throw new CatalogueUnprocessableException("The Catalogue rejected POST /api/v1/organisations/1/projects as semantically invalid");
         }
 
         @GetMapping("/timeout")
@@ -126,6 +132,13 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/conflict"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CONFLICT"));
+    }
+
+    @Test
+    void catalogueUnprocessableException_mapsTo422WithUpstreamValidationErrorCode() throws Exception {
+        mockMvc.perform(get("/test/unprocessable"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("UPSTREAM_VALIDATION_ERROR"));
     }
 
     @Test

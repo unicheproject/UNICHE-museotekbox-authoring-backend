@@ -105,11 +105,10 @@ sync service στο `application/<feature>/`, καλούμενη από κάθε
   παραμένει server-side (Catalogue θα γυρίσει 403 όπως και να 'χει αν προσπαθήσει κάτι
   μη επιτρεπτό).
 - Να χειρίζεται explicit τα HTTP status codes που ήδη υπάρχουν (400 validation, 403
-  forbidden, 404 not found, 500 unexpected) βάσει του `ErrorEnvelope` σχήματος (ενότητα
-  5) — και να ξέρει ότι κάποια codes που ίσως περιμένει (401 σε λάθος/ληγμένο token, 409,
-  422, 502/503/504 από αργό/κατεβασμένο Catalogue) δεν είναι ακόμα ρητά διαχωρισμένα
-  server-side (βλ. gaps στην ενότητα 5) — μέχρι να κλείσει αυτό, οτιδήποτε από αυτά τα
-  σενάρια μπορεί να εμφανιστεί σαν γενικό 500 στο frontend.
+  forbidden, 404 not found, 409 conflict, 422 unprocessable, 502/503/504 από αργό/
+  κατεβασμένο Catalogue, 500 unexpected) βάσει του `ErrorEnvelope` σχήματος (ενότητα 5).
+  Το μόνο που απομένει ρητά μη διαχωρισμένο είναι το 401 σε λάθος/ληγμένο token, το οποίο
+  ούτως ή άλλως δεν περνάει ποτέ από τον `GlobalExceptionHandler` (βλ. ενότητα 5).
 - CORS: μόνο τα origins στο `museotek.cors.allowed-origins` γίνονται δεκτά (comma-separated
   λίστα) — αν το frontend τρέχει σε νέο domain/port, χρειάζεται να προστεθεί εκεί.
 
@@ -364,6 +363,7 @@ validation, δεν θα διαρρεύσει στο response.
 | `CatalogueNotFoundException` | 404 | `NOT_FOUND` |
 | `CatalogueForbiddenException` | 403 | `FORBIDDEN` |
 | `CatalogueConflictException` | 409 | `CONFLICT` |
+| `CatalogueUnprocessableException` | 422 | `UPSTREAM_VALIDATION_ERROR` |
 | `CatalogueTimeoutException` | 504 | `UPSTREAM_TIMEOUT` |
 | `CatalogueUnavailableException` | 503 | `UPSTREAM_UNAVAILABLE` |
 | `CatalogueBadResponseException` | 502 | `UPSTREAM_INVALID_RESPONSE` |
@@ -386,21 +386,18 @@ validation, δεν θα διαρρεύσει στο response.
 αυτόματα:
 
 - **403 → `CatalogueForbiddenException`**, **404 → `CatalogueNotFoundException`**, **409
-  → `CatalogueConflictException`**, **408/504 → `CatalogueTimeoutException`**.
+  → `CatalogueConflictException`**, **422 → `CatalogueUnprocessableException`**,
+  **408/504 → `CatalogueTimeoutException`**.
 - Οποιοδήποτε άλλο 5xx → `CatalogueUnavailableException`· οποιοδήποτε άλλο 4xx (π.χ.
   token που το Catalogue απορρίπτει) → `CatalogueBadResponseException`, με
   `log.error` γιατί σημαίνει misconfiguration εδώ, όχι λάθος του caller.
 - Transport-level αποτυχίες (connection refused, connect/read timeout που δεν έφτασε
   καν σε HTTP status — `ResourceAccessException`) μεταφράζονται ξεχωριστά: αν η αιτία
   είναι `HttpTimeoutException` → `CatalogueTimeoutException`, αλλιώς →
-  `CatalogueUnavailableException`. Ο διαχωρισμός timeout/unavailable έχει σημασία γιατί
-  ένα timeout αξίζει retry, ενώ ένα outage αξίζει να αναφερθεί.
-
-### ⚠️ Codes που παραμένουν ανοιχτά (422)
-
-- **422 (unprocessable entity):** δεν μοντελοποιείται ακόμα — bean validation
-  errors συνεχίζουν να γυρίζουν 400 (`VALIDATION_ERROR`), δεν έχει αποφασιστεί αν/πότε
-  χρειάζεται ξεχωριστό 422 semantic. Ανοιχτό θέμα, όχι υλοποιημένη συμπεριφορά.
+  `CatalogueUnavailableException`. Ο διαχωρισμός timeout/unavailable κρατιέται ξεχωριστός
+  μέχρι το 504/503 status code και τα logs — **όχι επειδή υπάρχει ήδη retry**, καμία
+  retry λογική δεν υπάρχει πουθενά στο codebase σήμερα· ο διαχωρισμός απλώς αφήνει
+  περιθώριο για μελλοντικό retry-on-timeout, χωρίς να τον υλοποιεί.
 
 ### Logging
 
@@ -470,10 +467,8 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
 
 1. Swagger UI/OpenAPI public σε production — ναι/όχι, ή περιορισμένο;
 2. `ddl-auto=update` σε production — μετάβαση σε Liquibase/Flyway, ή τουλάχιστον `validate`;
-3. 422 (unprocessable entity) status-code mapping — δεν έχει αποφασιστεί αν/πότε
-   χρειάζεται ξεχωριστό semantic από το τρέχον 400 `VALIDATION_ERROR` (βλ. ενότητα 5);
-4. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
-5. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
+3. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
+4. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
    χρειαστεί να συνδεθεί ένα request cross-service· το request-id correlation (βλ.
    ενότητα 5) καλύπτει το single-service use case ήδη.
 
@@ -502,11 +497,14 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
   `RequiredPlatformPropertiesCheck` (`EnvironmentPostProcessor`), που κάνει fail-fast
   στο boot — πριν από οποιοδήποτε bean — αν λείπει `issuer-uri` ή
   `uniche.catalogue.base-url` (βλ. ενότητα 6).
-- ~~409/502/503/504 status-code mapping~~ — λυμένο: `CatalogueClient` καταχωρεί πλέον
+- ~~409/422/502/503/504 status-code mapping~~ — λυμένο: `CatalogueClient` καταχωρεί πλέον
   ένα ενιαίο `.defaultStatusHandler(...)` (αντί για ανά-μέθοδο `.onStatus()`, που ήταν
   η ρίζα του πραγματικού bug στο `createProject`/toolSlug — βλ. ενότητα 5) που
-  μεταφράζει 409 → `CatalogueConflictException`, 408/504 → `CatalogueTimeoutException`,
-  άλλα 5xx → `CatalogueUnavailableException`, άλλα 4xx →
-  `CatalogueBadResponseException`· και transport-level timeouts/outages
-  (`ResourceAccessException` χωρίς καν HTTP status) ξεχωριστά. Το 422 παραμένει στο
-  item 3 παραπάνω — δεν άλλαξε.
+  μεταφράζει 409 → `CatalogueConflictException`, 422 → `CatalogueUnprocessableException`,
+  408/504 → `CatalogueTimeoutException`, άλλα 5xx → `CatalogueUnavailableException`,
+  άλλα 4xx → `CatalogueBadResponseException`· και transport-level timeouts/outages
+  (`ResourceAccessException` χωρίς καν HTTP status) ξεχωριστά. Το 422 ήταν ξεχωριστό
+  item επειδή σημασιολογικά διαφέρει από bean-validation 400 (`VALIDATION_ERROR`) — το
+  Catalogue απορρίπτει ένα syntactically-valid αίτημα για λόγους business-rule, όχι
+  malformed payload· γι' αυτό πήρε δικό του exception/code (`UPSTREAM_VALIDATION_ERROR`)
+  αντί να μπερδευτεί με το τοπικό 400.
