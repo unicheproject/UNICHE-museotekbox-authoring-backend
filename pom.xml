@@ -21,6 +21,12 @@
     <properties>
         <java.version>21</java.version>
         <springdoc.version>2.8.6</springdoc.version>
+        <!-- Spring Boot 3.4.7 manages 1.20.6, whose Docker environment detection pings a
+             hardcoded old API version (1.32) that this host's Docker Engine rejects outright
+             (minimum supported is 1.40). Overriding to the latest 1.x release fixes detection
+             without jumping to Testcontainers 2.x, which spring-boot-testcontainers 3.4.7 isn't
+             verified against. -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>
@@ -99,10 +105,17 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- In-memory DB for integration tests only; production always uses PostgreSQL -->
+        <!-- Real PostgreSQL for integration tests, via a container Spring Boot starts and
+             wires itself (@ServiceConnection) — see support/TestcontainersConfiguration.
+             Replaces H2: identical database engine to production, not an approximation. -->
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
 

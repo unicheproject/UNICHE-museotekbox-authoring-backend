@@ -2,12 +2,14 @@ package com.museotek.box.infrastructure.security;
 
 import com.museotek.box.infrastructure.repository.UserRepository;
 import com.museotek.box.support.FakeIdentityProvider;
+import com.museotek.box.support.TestcontainersConfiguration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -32,9 +34,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Drives the real {@link SecurityConfig} filter chain end-to-end against
  * {@link FakeIdentityProvider}, a tiny in-process fake Keycloak realm, so
  * {@code JwtDecoders.fromIssuerLocation} does a real HTTP round trip and real RS256
- * signature verification, exactly like it would against Keycloak. H2 stands in for
- * PostgreSQL so JIT user provisioning can be asserted against a real (if in-memory)
- * database.
+ * signature verification, exactly like it would against Keycloak. A real, containerized
+ * PostgreSQL (see {@link TestcontainersConfiguration}) backs JIT user provisioning, so the
+ * concurrency test below exercises the actual unique-constraint/transaction behavior
+ * production runs against, not an in-memory approximation of it.
  *
  * <p>Catalogue itself is intentionally left unreachable ({@code uniche.catalogue.base-url}
  * in application-test.properties points at a closed port) — these tests only assert on
@@ -43,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * from the unreachable Catalogue call) proves it let the request through.
  */
 @SpringBootTest
+@Import(TestcontainersConfiguration.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class SecurityIntegrationTest {
