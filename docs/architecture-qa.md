@@ -467,7 +467,8 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
 | `uniche.catalogue.base-url` | Ποιο Catalogue instance καλείται | Θεμέλιο του org/project/authorization integration | κενό (**όχι πλέον production URL**) | Δεν δείχνει πια σιωπηλά σε production | **Ναι, πάντα ρητά** | Όχι | **Fail-fast στο boot**: `RequiredPlatformPropertiesCheck` (`EnvironmentPostProcessor`, βλ. παρακάτω) |
 | `uniche.tool.slug` | (προορίζεται να δηλώνει το tool slug αυτού του backend στην πλατφόρμα) | — | `museotek-box` | —                                                                                                                                                                            | — | Όχι | **σήμερα dead config**: δηλώνεται στο properties αλλά δεν γίνεται `@Value`-inject πουθενά στον κώδικα |
 | `museotek.cors.allowed-origins` | Ποια origins επιτρέπονται (CORS) | Το Vue frontend πρέπει να μπορεί να καλέσει το API από browser | `http://localhost:5173` (Vite dev) | Μόνο local dev                                                                                                                                                               | **Ναι, πάντα ρητά ανά environment** | Όχι | Κανένα — δεν ελέγχεται π.χ. format (scheme/trailing slash), λάθος τιμή αποτυγχάνει σιωπηλά μόνο στο runtime browser request, όχι στο startup |
-| `springdoc.api-docs.path` / `springdoc.swagger-ui.path` / `springdoc.swagger-ui.try-it-out-enabled` | Πού ζει το OpenAPI JSON / Swagger UI, αν επιτρέπεται live "try it out" | Dev/QA convenience, API contract visibility | `/api-docs`, `/swagger-ui.html`, `true` | Ίδιο σε όλα τα environments σήμερα — **ανοιχτό θέμα**: αυτά είναι `permitAll()` στο `SecurityConfig`, άρα ολόκληρο το API schema είναι δημόσια ορατό ακόμα και σε production | Απόφαση εκκρεμεί | Όχι | — |
+| `springdoc.api-docs.enabled` / `springdoc.swagger-ui.enabled` | Αν το OpenAPI JSON / Swagger UI εξυπηρετούνται καθόλου | Έλεγχος έκθεσης του API schema ανά environment | `${SWAGGER_ENABLED:false}` (**off αν δεν οριστεί**) | Ρητά `SWAGGER_ENABLED=true` μόνο local/dev· prod αφήνεται στο fail-safe default | **Ναι, πρέπει να μείνει false/άσχετο σε prod** | Όχι | Κανένα ρητό — αν μείνει ασυμπλήρωτο, απλά δεν εξυπηρετούνται τα endpoints (404), όχι startup failure |
+| `springdoc.api-docs.path` / `springdoc.swagger-ui.path` / `springdoc.swagger-ui.try-it-out-enabled` | Πού ζει το OpenAPI JSON / Swagger UI, αν επιτρέπεται live "try it out" | Dev/QA convenience, API contract visibility | `/api-docs`, `/swagger-ui.html`, `true` | Ίδιο σε όλα τα environments — αδιάφορο πλέον όταν το `enabled` παραπάνω είναι false, μιας και τα endpoints δεν υπάρχουν καν | — | Όχι | — |
 | `management.endpoints.web.exposure.include` | Ποια actuator endpoints εκτίθενται | Ops/monitoring χωρίς να εκτεθούν επικίνδυνα endpoints (`env`, `beans`, `heapdump`) | `health,info` (σωστά συντηρητικό) | Όλα — σκόπιμα fixed, όχι per-environment axis (είναι security control)                                                                                                       | Ναι, όπως είναι | Όχι | — |
 | `logging.pattern.level` | Injects το `%X{requestId}` (MDC, βλ. `CorrelationIdFilter` στην ενότητα 4) σε κάθε log line | Log-to-request correlation χωρίς distributed tracing | `%5p [reqId=%X{requestId}]` (hardcoded) | Όλα | Ναι, όπως είναι | Όχι | — |
 
@@ -488,13 +489,12 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
 
 ## Περίληψη ανοιχτών θεμάτων
 
-1. Swagger UI/OpenAPI public σε production — ναι/όχι, ή περιορισμένο;
-2. `ddl-auto=update` σε production — μετάβαση σε Liquibase/Flyway, ή τουλάχιστον `validate`;
-3. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
-4. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
+1. `ddl-auto=update` σε production — μετάβαση σε Liquibase/Flyway, ή τουλάχιστον `validate`;
+2. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up;
+3. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
    χρειαστεί να συνδεθεί ένα request cross-service· το request-id correlation (βλ.
    ενότητα 5) καλύπτει το single-service use case ήδη.
-5. Το `ProjectAccessGuard`-invariant (κάθε project-scoped local feature πρέπει να το
+4. Το `ProjectAccessGuard`-invariant (κάθε project-scoped local feature πρέπει να το
    καλεί πρώτο, βλ. ενότητα 3) δεν έχει σήμερα κανέναν automated enforcement μηχανισμό
    (π.χ. ArchUnit rule) — στηρίζεται αποκλειστικά στο README/code review. Αν προστεθεί
    ένα πρώτο πραγματικό project-scoped local feature (π.χ. το `Box`'s δικό του
@@ -503,6 +503,15 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
    και το `ProjectAccessGuard`.
 
 **Λυμένα:**
+- ~~Swagger UI/OpenAPI public σε production~~ — λυμένο: `springdoc.api-docs.enabled` /
+  `springdoc.swagger-ui.enabled` πλέον `${SWAGGER_ENABLED:false}` — off by default,
+  ρητά `SWAGGER_ENABLED=true` μόνο σε local/dev (βλ. ενότητα 6). Admin-only access
+  εξετάστηκε και απορρίφθηκε: το `platformAdmin` flag ζει μόνο στο Catalogue
+  (`CatalogueMeAuthorizationDto`), όχι σαν JWT claim, άρα θα χρειαζόταν είτε ένα live
+  Catalogue round-trip σε κάθε Swagger request είτε ένα νέο Keycloak realm-role claim
+  μόνο γι' αυτό — disproportionate σε σχέση με το πρόβλημα (public API-schema
+  disclosure, όχι auth bypass, αφού το "try it out" πάντα χρειάζεται πραγματικό bearer
+  token για να πετύχει έναντι του `anyRequest().authenticated()`).
 - ~~Race condition στο `JitUserProvisioningService.provision()`~~ — λυμένο: όχι πλέον
   `@Transactional`, catch+retry στο `DataIntegrityViolationException` (βλ. ενότητα 4).
 - ~~Exception μέσα στο `JitUserProvisioningFilter` δεν παίρνει το `ErrorEnvelope`
