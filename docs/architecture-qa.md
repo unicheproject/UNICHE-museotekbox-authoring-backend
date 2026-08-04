@@ -165,21 +165,44 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
 | `RestoreProjectUseCase` | `POST /api/v1/projects/{id}/restore` | `id` → `CatalogueProjectDto` | Καθαρίζει το `deletedAt` στο τοπικό row |
 | `UpdateProjectUseCase` | `PATCH /api/v1/projects/{id}` | `id` + `CatalogueUpdateProjectRequest(name)` → `CatalogueProjectDto` | Το δικό μας public API είναι PATCH, αλλά το πραγματικό Catalogue endpoint είναι PUT (ρητό comment στο `CatalogueClient.updateProject` — σκόπιμο, όχι bug) |
 
-### `GetProjectQuery`
-- **Ευθύνη:** διαβάζει project· σε επιτυχία κάνει upsert το companion row· σε Catalogue
-  404 κάνει soft-delete το companion row πριν αφήσει το 404 να προχωρήσει. Ονομάζουμε
-  αυτό το soft-delete βήμα **"cleanup"** στην υπόλοιπη ενότητα ("lazy-JIT" reconciliation
-  — το **μοναδικό** σημείο του κώδικα που το κάνει).
-- **Endpoint:** `GET /api/v1/projects/{id}` (`ProjectController`).
-- **Input:** `id`. **Output:** `CatalogueProjectDto`.
+### `ProjectAccessGuard` (application/projectaccess/)
+- **Ευθύνη:** το μοναδικό, υποχρεωτικό entry point για οποιαδήποτε project-scoped
+  λειτουργία, σημερινή ή μελλοντική. Διαβάζει project από το Catalogue· σε επιτυχία
+  κάνει upsert το companion row· σε Catalogue 404 κάνει soft-delete το companion row
+  πριν αφήσει το 404 να προχωρήσει. Ονομάζουμε αυτό το soft-delete βήμα **"cleanup"**
+  στην υπόλοιπη ενότητα ("lazy-JIT" reconciliation — το **μοναδικό** σημείο του κώδικα
+  που το κάνει).
+- **Καλείται από:** `GetProjectQuery` (thin delegate, δες παρακάτω). Οποιοδήποτε
+  μελλοντικό `application/<feature>` που διαβάζει/γράφει τοπικά δεδομένα scoped by
+  `projectId` (π.χ. ένα μελλοντικό `Scene`/`Rule`, ή το ήδη υπάρχον `Box` όταν αποκτήσει
+  δικό του `web/`+`application/` layer) **πρέπει** να καλέσει `requireAccess(projectId)`
+  πριν αγγίξει το repository του — βλ. README, ενότητα "Adding a new entity/feature".
+- **Input:** `projectId`. **Output:** `CatalogueProjectDto`.
 - **Εξωτερικοί πόροι:** Catalogue (read) + τοπικός πίνακας `projects` (write και στα δύο branches).
 - **Πιθανές αποτυχίες:** Catalogue 404 → πιάνεται εδώ ρητά για το cleanup, μετά
   re-thrown· οποιοδήποτε άλλο exception (π.χ. Catalogue 5xx) περνάει χωρίς cleanup.
-- **Συνέπεια:** αυτή είναι η class που **υλοποιεί** το reconciliation — τα άλλα use
-  cases βασίζονται σε αυτήν έμμεσα (κάθε φορά που κάποιος ανοίγει ξανά ένα project,
-  αυτό το path τρέχει και διορθώνει τυχόν ασυνέπεια).
-- **Γιατί ξεχωριστή class:** το reconciliation logic (`try/catch` γύρω από το read) είναι
-  αρκετά σημαντικό/ιδιαίτερο ώστε να μη θέλουμε να χαθεί μέσα σε γενικότερο κώδικα.
+- **Γιατί ξεχωριστή class / γιατί σε δικό της package:** το reconciliation logic ήταν
+  πριν μέσα στο `GetProjectQuery`, αλλά μετακινήθηκε σε shared package ώστε να μπορεί
+  να κληθεί από οποιοδήποτε μελλοντικό project-scoped feature, όχι μόνο από το read
+  endpoint του project. `application/projectaccess/` είναι το αντίστοιχο του
+  `web/error/` μέσα στο `application/` layer — ένα shared, cross-cutting subpackage,
+  όχι ένα per-feature subpackage.
+- **Γιατί ΔΕΝ γίνεται retrofit στα `Update`/`Delete`/`RestoreProjectUseCase`:** τα
+  PUT/DELETE/restore endpoints του Catalogue κάνουν ήδη πλήρη authorization enforcement
+  μόνα τους· ένα προκαταρκτικό `requireAccess` πριν από αυτά θα ήταν επιπλέον round-trip
+  χωρίς πραγματικό security όφελος, αφού η δική τους companion-sync λογική καλύπτει ήδη
+  το reconciliation. Σκόπιμη απόκλιση από το αντίστοιχο pattern του iGuide (το reference
+  implementation platform tool που έχει ήδη αυτό το gateway pattern).
+
+### `GetProjectQuery`
+- **Ευθύνη:** thin delegate προς `ProjectAccessGuard.requireAccess(id)` — υπάρχει
+  ξεχωριστά μόνο για να κρατήσει το 1:1 naming convention endpoint↔class
+  (`GET /api/v1/projects/{id}` ↔ `GetProjectQuery`, ίδιο pattern με
+  `GetOrganisationQuery`/`GetMyAuthorizationQuery`).
+- **Endpoint:** `GET /api/v1/projects/{id}` (`ProjectController`).
+- **Input:** `id`. **Output:** `CatalogueProjectDto`.
+- **Συνέπεια/reconciliation:** δες `ProjectAccessGuard` παραπάνω — αυτή η class δεν έχει
+  πλέον δική της λογική.
 
 ### `ListProjectsForOrgPassthroughQuery` / `ListDeletedProjectsForOrgPassthroughQuery`
 - **Ευθύνη:** καθαρό passthrough listing από το Catalogue — καμία τοπική εγγραφή.
@@ -471,6 +494,13 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
 4. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
    χρειαστεί να συνδεθεί ένα request cross-service· το request-id correlation (βλ.
    ενότητα 5) καλύπτει το single-service use case ήδη.
+5. Το `ProjectAccessGuard`-invariant (κάθε project-scoped local feature πρέπει να το
+   καλεί πρώτο, βλ. ενότητα 3) δεν έχει σήμερα κανέναν automated enforcement μηχανισμό
+   (π.χ. ArchUnit rule) — στηρίζεται αποκλειστικά στο README/code review. Αν προστεθεί
+   ένα πρώτο πραγματικό project-scoped local feature (π.χ. το `Box`'s δικό του
+   `web/`+`application/` layer, ή ένα μελλοντικό Scene), αξίζει να εξεταστεί ένα
+   ArchUnit test που επιβεβαιώνει ότι κάθε τέτοια `application/<feature>` class καλεί
+   και το `ProjectAccessGuard`.
 
 **Λυμένα:**
 - ~~Race condition στο `JitUserProvisioningService.provision()`~~ — λυμένο: όχι πλέον

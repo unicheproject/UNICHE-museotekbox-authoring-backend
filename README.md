@@ -94,6 +94,16 @@ that resource — it's a per-feature exception, not what every `application/`
 subpackage does. A feature with nothing to sync (no local mirror needed) stays as
 thin passthroughs.
 
+`projectaccess/` is a shared, cross-cutting `application/` subpackage — the
+`application/`-layer equivalent of `web/error/` below — holding `ProjectAccessGuard`,
+the mandatory entry point for any project-scoped operation. Any `application/<feature>`
+class whose data is scoped by `projectId` must call
+`ProjectAccessGuard.requireAccess(projectId)` before reading or writing that data, even
+if the feature's own storage is 100% local with no direct Catalogue call of its own —
+this is what stands between a local repository query and a cross-tenant authorization
+bypass, since project-level authorization is Catalogue's responsibility, not this
+backend's.
+
 ### `web/`
 The HTTP layer. One subpackage per feature, holding that feature's controller *and*
 its own request/response DTOs — deliberately separate records from any external
@@ -125,3 +135,10 @@ package regardless of how many entities exist.
   companion-sync service in `application/<feature>/`, plus a DTO/client method in the
   relevant `infrastructure/<external-system>/` package. Don't add this for purely
   local entities — there's nothing external to sync against.
+- If the new entity is scoped by `projectId` (i.e. it belongs to a project, the way
+  `Box` already does): every `application/<feature>` use case/query that reads or
+  writes it must call `application/projectaccess/ProjectAccessGuard.requireAccess
+  (projectId)` as its first step, even though entities like `Box` never call
+  Catalogue directly themselves. Skipping this is a real cross-tenant authorization
+  bypass, not a style nit — nothing else in the request path checks project-level
+  authorization for local-only data.
