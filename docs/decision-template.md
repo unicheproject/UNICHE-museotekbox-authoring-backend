@@ -72,5 +72,7 @@ Every proposal comes with a proposed commit split, e.g.:
 
 ---
 
-See [`architecture-qa.md`](./architecture-qa.md) for a complete example of applying
+See [`dependencies-and-config.md`](./dependencies-and-config.md),
+[`architecture-and-classes.md`](./architecture-and-classes.md), and
+[`security-and-errors.md`](./security-and-errors.md) for a complete example of applying
 this template to the current state of the backend.
