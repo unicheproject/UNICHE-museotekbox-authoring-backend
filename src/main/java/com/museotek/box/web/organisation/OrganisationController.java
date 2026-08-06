@@ -8,6 +8,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueCreateProjectRequest;
 import com.museotek.box.web.project.CreateProjectRequest;
 import com.museotek.box.web.project.ProjectResponse;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,17 +29,20 @@ public class OrganisationController {
     private final ListProjectsForOrgPassthroughQuery listProjectsForOrgQuery;
     private final ListDeletedProjectsForOrgPassthroughQuery listDeletedProjectsForOrgQuery;
     private final CreateProjectUseCase createProjectUseCase;
+    private final String toolSlug;
 
     public OrganisationController(
             GetOrganisationQuery getOrganisationQuery,
             ListProjectsForOrgPassthroughQuery listProjectsForOrgQuery,
             ListDeletedProjectsForOrgPassthroughQuery listDeletedProjectsForOrgQuery,
-            CreateProjectUseCase createProjectUseCase
+            CreateProjectUseCase createProjectUseCase,
+            @Value("${uniche.tool.slug}") String toolSlug
     ) {
         this.getOrganisationQuery = getOrganisationQuery;
         this.listProjectsForOrgQuery = listProjectsForOrgQuery;
         this.listDeletedProjectsForOrgQuery = listDeletedProjectsForOrgQuery;
         this.createProjectUseCase = createProjectUseCase;
+        this.toolSlug = toolSlug;
     }
 
     @GetMapping("/{orgId}")
@@ -60,7 +64,7 @@ public class OrganisationController {
     public ResponseEntity<ProjectResponse> createProject(@PathVariable UUID orgId, @Valid @RequestBody CreateProjectRequest request) {
         var created = createProjectUseCase.execute(
                 orgId,
-                new CatalogueCreateProjectRequest(request.name(), request.slug(), request.toolSlug())
+                new CatalogueCreateProjectRequest(request.name(), request.slug(), toolSlug)
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(ProjectResponse.from(created));
     }

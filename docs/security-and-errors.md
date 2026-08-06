@@ -211,12 +211,10 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
 ## Περίληψη ανοιχτών θεμάτων
 
 1. `ddl-auto=update` σε production — μετάβαση σε Liquibase/Flyway, ή τουλάχιστον `validate`;
-2. `uniche.tool.slug` property — dead config, να αφαιρεθεί ή να γίνει wire-up (βλ.
-   `dependencies-and-config.md`, ενότητα 2);
-3. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
+2. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
    χρειαστεί να συνδεθεί ένα request cross-service· το request-id correlation (βλ.
    ενότητα 2 παραπάνω) καλύπτει το single-service use case ήδη.
-4. Το `ProjectAccessGuard`-invariant (κάθε project-scoped local feature πρέπει να το
+3. Το `ProjectAccessGuard`-invariant (κάθε project-scoped local feature πρέπει να το
    καλεί πρώτο, βλ. `architecture-and-classes.md`, ενότητα 2) δεν έχει σήμερα κανέναν
    automated enforcement μηχανισμό (π.χ. ArchUnit rule) — στηρίζεται αποκλειστικά στο
    README/code review. Αν προστεθεί ένα πρώτο πραγματικό project-scoped local feature
@@ -225,6 +223,16 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
    `application/<feature>` class καλεί και το `ProjectAccessGuard`.
 
 **Λυμένα:**
+- ~~`uniche.tool.slug` property ήταν dead config~~ — λυμένο: το `OrganisationController`
+  το κάνει πλέον `@Value`-inject και το χρησιμοποιεί ως `toolSlug` σε κάθε
+  `CatalogueCreateProjectRequest`, αντί να το δέχεται ως πεδίο από τον client
+  (`CreateProjectRequest.toolSlug` αφαιρέθηκε). Αυτό δεν είναι απλά wiring ενός dead
+  property — κλείνει δομικά την ίδια κατηγορία bug με το toolSlug mismatch bug που
+  αναφέρεται πάνω σε αυτή τη σελίδα (frontend hardcoded λάθος slug): ο client δεν
+  μπορεί πλέον να στείλει λάθος τιμή, γιατί δεν στέλνει καμία. Βρέθηκε και διορθώθηκε
+  παράλληλα ότι το default του ίδιου property ήταν λάθος (`museotek-box` αντί για το
+  σωστό, χωρίς παύλα, `museotekbox` — το ίδιο σωστό value που ήδη χρησιμοποιεί το
+  Catalogue `authoring_tools` seed).
 - ~~Swagger UI/OpenAPI public σε production~~ — λυμένο: `springdoc.api-docs.enabled` /
   `springdoc.swagger-ui.enabled` πλέον `${SWAGGER_ENABLED:false}` — off by default,
   ρητά `SWAGGER_ENABLED=true` μόνο σε local/dev (βλ. `dependencies-and-config.md`,
