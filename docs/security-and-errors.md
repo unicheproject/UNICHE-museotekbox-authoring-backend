@@ -210,19 +210,40 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
 
 ## Περίληψη ανοιχτών θεμάτων
 
-1. `ddl-auto=update` σε production — μετάβαση σε Liquibase/Flyway, ή τουλάχιστον `validate`;
-2. Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry) — μόνο αν/όταν
-   χρειαστεί να συνδεθεί ένα request cross-service· το request-id correlation (βλ.
-   ενότητα 2 παραπάνω) καλύπτει το single-service use case ήδη.
-3. Το `ProjectAccessGuard`-invariant (κάθε project-scoped local feature πρέπει να το
-   καλεί πρώτο, βλ. `architecture-and-classes.md`, ενότητα 2) δεν έχει σήμερα κανέναν
-   automated enforcement μηχανισμό (π.χ. ArchUnit rule) — στηρίζεται αποκλειστικά στο
-   README/code review. Αν προστεθεί ένα πρώτο πραγματικό project-scoped local feature
-   (π.χ. το `Box`'s δικό του `web/`+`application/` layer, ή ένα μελλοντικό Scene),
-   αξίζει να εξεταστεί ένα ArchUnit test που επιβεβαιώνει ότι κάθε τέτοια
-   `application/<feature>` class καλεί και το `ProjectAccessGuard`.
+**Αναβλήθηκαν σκόπιμα (deferred), με αιτιολόγηση — όχι ξεχασμένα:**
+
+- Πραγματικό distributed tracing (Micrometer Tracing/OpenTelemetry). Το request-id
+  correlation (βλ. ενότητα 2 παραπάνω) καλύπτει ήδη το single-service use case, αλλά
+  δεν προπαγάρεται cross-service. Δεν είναι κάτι που μπορεί να κλείσει μονομερώς εδώ:
+  για να έχει νόημα ένα πραγματικό trace ανάμεσα σε MuseotekBox και Catalogue, πρέπει
+  να μπει το ίδιο instrumentation (Micrometer Tracing + tracing backend) και στο
+  Catalogue — αλλιώς το trace σταματάει στα όρια του MuseotekBox και δεν λέει τίποτα
+  παραπάνω από το υπάρχον request-id. Εξαρτάται δηλαδή από αλλαγή σε άλλο repo/service,
+  όχι μόνο σε τεχνικό κόστος εδώ.
+- Το `ProjectAccessGuard`-invariant (κάθε project-scoped local feature πρέπει να το
+  καλεί πρώτο, βλ. `architecture-and-classes.md`, ενότητα 2) δεν έχει σήμερα κανέναν
+  automated enforcement μηχανισμό (π.χ. ArchUnit rule) — στηρίζεται αποκλειστικά στο
+  README/code review. Εξετάστηκαν και απορρίφθηκαν ρητά δύο εναλλακτικές: (α) ένα
+  ArchUnit test που να επιβεβαιώνει ότι κάθε `application/<feature>` class που αγγίζει
+  ένα project-scoped repository καλεί και το `ProjectAccessGuard` — εφικτό ήδη, αλλά
+  ατελές (naming-heuristic, όχι πραγματικός έλεγχος)· (β) δομική αλλαγή ώστε κάθε
+  project-scoped repository πρόσβαση να περνάει υποχρεωτικά μέσα από το guard (compile
+  error αν παραλειφθεί) — πιο σωστό μακροπρόθεσμα, αλλά δεν υπάρχει ακόμα κανένα
+  πραγματικό project-scoped local feature (το `Box` δεν έχει δικό του `web/`+
+  `application/` layer ακόμα) πάνω στο οποίο να σχεδιαστεί σωστά. Θα επανεξεταστεί όταν
+  προστεθεί το πρώτο τέτοιο feature.
 
 **Λυμένα:**
+- ~~`ddl-auto=update` σε production~~ — λυμένο: το Liquibase (`org.liquibase:liquibase-core`)
+  είναι πλέον ο owner του schema, με ένα hand-written baseline changelog
+  (`db/changelog/sql/01-initial-schema.sql`, formatted-SQL style, ένα changeset ανά
+  table) που καλύπτει και τα 10 υπάρχοντα tables (incl. το `box_projects` join table
+  και τα 4 JOINED-inheritance subtype tables του `ScanObject`). `ddl-auto` έγινε
+  `validate` παντού, incl. τα tests — βλ. `dependencies-and-config.md`, ενότητα 2, για
+  τα νέα properties. Καμία αλλαγή συμπεριφοράς σκόπιμα: το FK από κάθε subtype table
+  προς `scan_objects` **δεν** έχει `ON DELETE CASCADE`, ταιριάζοντας με ό,τι το
+  Hibernate `ddl-auto=update` παρήγαγε ήδη — ένα cascade-delete θα ήταν πραγματική
+  αλλαγή συμπεριφοράς, εκτός scope εδώ, ξεχωριστή απόφαση αν χρειαστεί ποτέ.
 - ~~`uniche.tool.slug` property ήταν dead config~~ — λυμένο: το `OrganisationController`
   το κάνει πλέον `@Value`-inject και το χρησιμοποιεί ως `toolSlug` σε κάθε
   `CatalogueCreateProjectRequest`, αντί να το δέχεται ως πεδίο από τον client
