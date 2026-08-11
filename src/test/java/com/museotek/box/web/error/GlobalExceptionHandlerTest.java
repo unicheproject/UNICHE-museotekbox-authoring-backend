@@ -1,5 +1,7 @@
 package com.museotek.box.web.error;
 
+import com.museotek.box.domain.box.BoxNotFoundException;
+import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
@@ -76,6 +78,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/boom")
         void boom() {
             throw new IllegalStateException("something exploded");
+        }
+
+        @GetMapping("/box-not-found")
+        void boxNotFound() {
+            throw new BoxNotFoundException("No box 123 for org 456");
+        }
+
+        @GetMapping("/duplicate-serial-number")
+        void duplicateSerialNumber() {
+            throw new DuplicateSerialNumberException("A box with serial number SN-1 already exists");
         }
 
         @PostMapping("/validated")
@@ -160,6 +172,22 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/bad-response"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.code").value("UPSTREAM_INVALID_RESPONSE"));
+    }
+
+    @Test
+    void boxNotFoundException_mapsTo404WithBoxNotFoundCode() throws Exception {
+        mockMvc.perform(get("/test/box-not-found"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("BOX_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("No box 123 for org 456"));
+    }
+
+    @Test
+    void duplicateSerialNumberException_mapsTo409WithDuplicateSerialNumberCode() throws Exception {
+        mockMvc.perform(get("/test/duplicate-serial-number"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_SERIAL_NUMBER"))
+                .andExpect(jsonPath("$.message").value("A box with serial number SN-1 already exists"));
     }
 
     @Test

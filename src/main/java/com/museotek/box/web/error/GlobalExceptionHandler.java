@@ -1,5 +1,7 @@
 package com.museotek.box.web.error;
 
+import com.museotek.box.domain.box.BoxNotFoundException;
+import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
@@ -28,6 +30,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorEnvelope handleNotFound(CatalogueNotFoundException e) {
         return new ErrorEnvelope("NOT_FOUND", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(BoxNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorEnvelope handleBoxNotFound(BoxNotFoundException e) {
+        return new ErrorEnvelope("BOX_NOT_FOUND", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(DuplicateSerialNumberException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorEnvelope handleDuplicateSerialNumber(DuplicateSerialNumberException e) {
+        return new ErrorEnvelope("DUPLICATE_SERIAL_NUMBER", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(CatalogueForbiddenException.class)
