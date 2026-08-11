@@ -151,8 +151,15 @@ validation, δεν θα διαρρεύσει στο response.
 | `CatalogueTimeoutException` | 504 | `UPSTREAM_TIMEOUT` |
 | `CatalogueUnavailableException` | 503 | `UPSTREAM_UNAVAILABLE` |
 | `CatalogueBadResponseException` | 502 | `UPSTREAM_INVALID_RESPONSE` |
+| `BoxNotFoundException` | 404 | `BOX_NOT_FOUND` |
+| `DuplicateSerialNumberException` | 409 | `DUPLICATE_SERIAL_NUMBER` |
 | `MethodArgumentNotValidException` (bean validation) | 400 | `VALIDATION_ERROR` |
 | οτιδήποτε άλλο (`Exception.class` catch-all) | 500 | `INTERNAL_ERROR` |
+
+`BoxNotFoundException`/`DuplicateSerialNumberException` (`domain/box/`) είναι τα πρώτα
+exceptions σε αυτόν τον πίνακα που δεν προέρχονται από το Catalogue καθόλου — 100%
+τοπικά, πετιούνται από `application/box/` use cases/queries πάνω σε δεδομένα που δεν
+έχουν καμία σχέση με Catalogue call.
 
 **401 (authentication):** δεν παράγεται ποτέ από το `GlobalExceptionHandler` — είναι
 εξ ολοκλήρου του Spring Security OAuth2 resource server (missing/invalid/expired token),
@@ -229,11 +236,24 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
   ατελές (naming-heuristic, όχι πραγματικός έλεγχος)· (β) δομική αλλαγή ώστε κάθε
   project-scoped repository πρόσβαση να περνάει υποχρεωτικά μέσα από το guard (compile
   error αν παραλειφθεί) — πιο σωστό μακροπρόθεσμα, αλλά δεν υπάρχει ακόμα κανένα
-  πραγματικό project-scoped local feature (το `Box` δεν έχει δικό του `web/`+
-  `application/` layer ακόμα) πάνω στο οποίο να σχεδιαστεί σωστά. Θα επανεξεταστεί όταν
-  προστεθεί το πρώτο τέτοιο feature.
+  πραγματικό **project**-scoped local feature πάνω στο οποίο να σχεδιαστεί σωστά· το
+  `Box` (`web/box/`+`application/box/`, δες `architecture-and-classes.md`, ενότητα 2)
+  απέκτησε πλέον δικό του layer, αλλά είναι **org**-scoped (μέσω του νέου
+  `OrgAccessGuard`, όχι το `ProjectAccessGuard`) — άρα δεν αλλάζει αυτό το item. Θα
+  επανεξεταστεί όταν προστεθεί το πρώτο πραγματικό project-scoped feature (π.χ. η
+  ανάθεση project σε ένα `Box`, βλ. `architecture-and-classes.md`).
 
 **Λυμένα:**
+- ~~Κανένας έλεγχος για org-scoped, καθαρά τοπικά write paths~~ — λυμένο: μέχρι το
+  `Box` (`application/box/`, βλ. `architecture-and-classes.md`, ενότητα 2), κάθε
+  org/project-scoped endpoint ήταν authorized μόνο επειδή προωθούσε το JWT στο Catalogue
+  σε κάθε κλήση και άφηνε το δικό του 403 να κάνει τη δουλειά· ένα org-scoped endpoint
+  πάνω σε 100% τοπικά δεδομένα (χωρίς καμία κλήση Catalogue στη ροή του) θα ήταν το
+  πρώτο πραγματικά ανεξέλεγκτο local write path. Νέο `OrgAccessGuard`
+  (`application/orgaccess/`) κλείνει αυτό ρητά: καλεί `CatalogueClient.getOrganisation
+  (orgId)` (ήδη access-checked ανά caller στο ίδιο το Catalogue) και αφήνει 403/404 να
+  προχωρήσουν αμετάβλητα — πραγματικό authorization boundary, όχι cosmetic. Το `Box`
+  είναι ο πρώτος (και μοναδικός, σήμερα) caller του.
 - ~~`ddl-auto=update` σε production~~ — λυμένο: το Liquibase (`org.liquibase:liquibase-core`)
   είναι πλέον ο owner του schema, με ένα hand-written baseline changelog
   (`db/changelog/sql/01-initial-schema.sql`, formatted-SQL style, ένα changeset ανά

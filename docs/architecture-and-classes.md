@@ -182,6 +182,55 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
   ότι αυτή η class δεν συντηρεί κανένα τοπικό state — σε αντίθεση με τα αδέρφια της στο
   ίδιο package που κάνουν companion-sync.
 
+### `OrgAccessGuard` (application/orgaccess/)
+- **Ευθύνη:** το αντίστοιχο του `ProjectAccessGuard`, αλλά για org-scoped δεδομένα που
+  είναι 100% τοπικά (καμία δική τους κλήση προς το Catalogue). Καλεί
+  `CatalogueClient.getOrganisation(orgId)` και αφήνει ό,τι exception πετάξει (403/404)
+  να προχωρήσει αμετάβλητο — καμία δική του λογική.
+- **Γιατί είναι πραγματικό authorization boundary, όχι cosmetic:** το `GET
+  /organisations/{orgId}` του Catalogue είναι ήδη access-checked ανά caller
+  (`organisationService.get(subject(), orgId)` στο Catalogue, τεκμηριωμένο ως "Get an
+  organisation the caller can reach") — άρα το να προωθείς απλά σε αυτό και να αφήνεις
+  το exception να περάσει είναι αρκετό, ίδιο μοτίβο με το `ProjectAccessGuard`.
+- **Γιατί δεν κάνει companion-sync (σε αντίθεση με το `ProjectAccessGuard`):** δεν
+  υπάρχει καθόλου τοπικός πίνακας `Organisation` σε αυτό το backend — δεν υπάρχει τίποτα
+  να γίνει sync. Καθαρός access check.
+- **Γιατί χρειάστηκε τώρα:** το `Box` (`application/box/`, δες παρακάτω) είναι το πρώτο
+  τοπικό entity που γράφεται/διαβάζεται μέσω δικού του `web/`+`application/` layer χωρίς
+  καμία κλήση Catalogue στη ροή του. Πριν από αυτή τη class, ένα org-scoped endpoint
+  πάνω σε καθαρά τοπικά δεδομένα θα ήταν το πρώτο πραγματικά ανεξέλεγκτο local write path
+  στο codebase — ένα raw `@PathVariable orgId` χωρίς κανέναν έλεγχο.
+- **Καλείται από:** `CreateBoxUseCase`, `ListBoxesForOrgQuery`, `GetBoxQuery` (πάντα ως
+  πρώτο βήμα). Οποιοδήποτε μελλοντικό org-scoped, καθαρά τοπικό feature πρέπει να το
+  καλεί το ίδιο, πριν αγγίξει το repository του.
+- **Input:** `orgId`. **Output:** `CatalogueOrganisationDto` (σήμερα ο caller δεν τον
+  χρησιμοποιεί — το ενδιαφέρον είναι το side effect του exception αν δεν υπάρχει access).
+
+### `CreateBoxUseCase` / `ListBoxesForOrgQuery` / `GetBoxQuery` (application/box/)
+- **Ευθύνη:** το πρώτο πραγματικό feature πάνω στο `Box` entity — μέχρι τώρα υπήρχε μόνο
+  το domain skeleton (`domain/box/Box.java`, `BoxStatus`) και ένα γυμνό
+  `BoxRepository`, χωρίς κανένα endpoint.
+- **Endpoints:** `POST` / `GET` / `GET /{boxId}` κάτω από
+  `/api/v1/organisations/{orgId}/boxes` (`BoxController`).
+- **Κοινό μοτίβο:** και οι 3 καλούν `OrgAccessGuard.requireAccess(orgId)` πρώτα, μετά
+  αγγίζουν το `BoxRepository` — καμία απευθείας κλήση Catalogue, το `Box` δεν είναι
+  Catalogue-owned resource, άρα δεν υπάρχει `*PassthroughQuery` naming (αυτό το suffix
+  έχει νόημα μόνο μέσα σε package όπου κάποιες classes κάνουν companion-sync και άλλες
+  όχι — εδώ καμία δεν κάνει).
+- **`CreateBoxUseCase`:** ελέγχει πρώτα `findBySerialNumber` και πετάει
+  `DuplicateSerialNumberException` (409) αν υπάρχει ήδη — αποφεύγει να διαρρεύσει raw
+  `DataIntegrityViolationException`/500 από το DB unique constraint
+  (`uk_boxes_serial_number`) στην προφανή real-world περίπτωση ενός λάθος/επαναλαμβανόμενου
+  serial number.
+- **`GetBoxQuery`:** χρησιμοποιεί `BoxRepository.findByIdAndOrgId(id, orgId)` αντί για
+  `findById` + σύγκριση μετά — σκόπιμο: το `Box.id` είναι sequential `Long` (όχι UUID
+  σαν το `Project`), άρα μια λάθος-org μαντεψιά πρέπει να πιάνεται στο ίδιο το query
+  (404), όχι μέσω ενός post-fetch check που θα μπορούσε να διαρρεύσει πληροφορία.
+- **Εκτός scope αυτού του πρώτου slice (σκόπιμα, όχι ξεχασμένα):** Update/Delete στο
+  `Box`, και τα `currentProject`/`assignedProjects` M:N assignment endpoints — αυτά θα
+  χρειαστούν *δύο* guards μαζί (`OrgAccessGuard` για το ίδιο το Box + `ProjectAccessGuard`
+  για το project που ανατίθεται), ξεχωριστό design pass.
+
 ### `ProjectCompanionSyncService`
 - **Ευθύνη:** οι δύο ακατέργαστες (raw) λειτουργίες πάνω στο companion row —
   `upsert(id, orgId, name)` και `softDelete(id)` — χωρίς καμία λογική για το πότε πρέπει
