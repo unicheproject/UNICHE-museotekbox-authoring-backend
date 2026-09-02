@@ -4,6 +4,7 @@ import com.museotek.box.application.project.DeleteProjectUseCase;
 import com.museotek.box.application.project.GetProjectQuery;
 import com.museotek.box.application.project.RestoreProjectUseCase;
 import com.museotek.box.application.project.UpdateProjectUseCase;
+import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.catalogue.CatalogueUpdateProjectRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -41,12 +42,14 @@ public class ProjectController {
 
     @GetMapping("/{id}")
     public ProjectResponse getProject(@PathVariable UUID id) {
-        return ProjectResponse.from(getProjectQuery.execute(id));
+        CatalogueProjectDto project = getProjectQuery.execute(id);
+        return ProjectResponse.from(project);
     }
 
     @PatchMapping("/{id}")
     public ProjectResponse updateProject(@PathVariable UUID id, @Valid @RequestBody UpdateProjectRequest request) {
-        return ProjectResponse.from(updateProjectUseCase.execute(id, new CatalogueUpdateProjectRequest(request.name())));
+        CatalogueProjectDto updated = updateProjectUseCase.execute(id, new CatalogueUpdateProjectRequest(request.name()));
+        return ProjectResponse.from(updated);
     }
 
     @DeleteMapping("/{id}")
@@ -57,6 +60,7 @@ public class ProjectController {
 
     @PostMapping("/{id}/restore")
     public ProjectResponse restoreProject(@PathVariable UUID id) {
-        return ProjectResponse.from(restoreProjectUseCase.execute(id));
+        CatalogueProjectDto restored = restoreProjectUseCase.execute(id);
+        return ProjectResponse.from(restored);
     }
 }

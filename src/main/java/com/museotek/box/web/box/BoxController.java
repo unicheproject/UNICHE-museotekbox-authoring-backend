@@ -5,6 +5,7 @@ import com.museotek.box.application.box.DeleteBoxUseCase;
 import com.museotek.box.application.box.GetBoxQuery;
 import com.museotek.box.application.box.ListBoxesForOrgQuery;
 import com.museotek.box.application.box.UpdateBoxUseCase;
+import com.museotek.box.domain.box.Box;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -47,17 +48,22 @@ public class BoxController {
     @PostMapping
     public ResponseEntity<BoxResponse> createBox(@PathVariable UUID orgId, @Valid @RequestBody CreateBoxRequest request) {
         var created = createBoxUseCase.execute(orgId, request.name(), request.serialNumber());
-        return ResponseEntity.status(HttpStatus.CREATED).body(BoxResponse.from(created));
+        BoxResponse response = BoxResponse.from(created);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping
     public List<BoxResponse> listBoxes(@PathVariable UUID orgId) {
-        return listBoxesForOrgQuery.execute(orgId).stream().map(BoxResponse::from).toList();
+        List<Box> boxes = listBoxesForOrgQuery.execute(orgId);
+        return boxes.stream()
+                .map(BoxResponse::from)
+                .toList();
     }
 
     @GetMapping("/{boxId}")
     public BoxResponse getBox(@PathVariable UUID orgId, @PathVariable Long boxId) {
-        return BoxResponse.from(getBoxQuery.execute(orgId, boxId));
+        Box box = getBoxQuery.execute(orgId, boxId);
+        return BoxResponse.from(box);
     }
 
     @PatchMapping("/{boxId}")

@@ -5,6 +5,8 @@ import com.museotek.box.application.project.CreateProjectUseCase;
 import com.museotek.box.application.project.ListDeletedProjectsForOrgPassthroughQuery;
 import com.museotek.box.application.project.ListProjectsForOrgPassthroughQuery;
 import com.museotek.box.infrastructure.catalogue.CatalogueCreateProjectRequest;
+import com.museotek.box.infrastructure.catalogue.CatalogueOrganisationDto;
+import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.web.project.CreateProjectRequest;
 import com.museotek.box.web.project.ProjectResponse;
 import jakarta.validation.Valid;
@@ -47,17 +49,24 @@ public class OrganisationController {
 
     @GetMapping("/{orgId}")
     public OrganisationResponse getOrganisation(@PathVariable UUID orgId) {
-        return OrganisationResponse.from(getOrganisationQuery.execute(orgId));
+        CatalogueOrganisationDto organisation = getOrganisationQuery.execute(orgId);
+        return OrganisationResponse.from(organisation);
     }
 
     @GetMapping("/{orgId}/projects")
     public List<ProjectResponse> listProjects(@PathVariable UUID orgId) {
-        return listProjectsForOrgQuery.execute(orgId).stream().map(ProjectResponse::from).toList();
+        List<CatalogueProjectDto> projects = listProjectsForOrgQuery.execute(orgId);
+        return projects.stream()
+                .map(ProjectResponse::from)
+                .toList();
     }
 
     @GetMapping("/{orgId}/projects/deleted")
     public List<ProjectResponse> listDeletedProjects(@PathVariable UUID orgId) {
-        return listDeletedProjectsForOrgQuery.execute(orgId).stream().map(ProjectResponse::from).toList();
+        List<CatalogueProjectDto> deletedProjects = listDeletedProjectsForOrgQuery.execute(orgId);
+        return deletedProjects.stream()
+                .map(ProjectResponse::from)
+                .toList();
     }
 
     @PostMapping("/{orgId}/projects")
@@ -66,6 +75,7 @@ public class OrganisationController {
                 orgId,
                 new CatalogueCreateProjectRequest(request.name(), request.slug(), toolSlug)
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(ProjectResponse.from(created));
+        ProjectResponse response = ProjectResponse.from(created);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

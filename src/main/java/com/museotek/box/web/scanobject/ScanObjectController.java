@@ -11,6 +11,7 @@ import com.museotek.box.application.scanobject.UpdateColouredCardUseCase;
 import com.museotek.box.application.scanobject.UpdateDraftUseCase;
 import com.museotek.box.application.scanobject.UpdatePrintedImageUseCase;
 import com.museotek.box.application.scanobject.UpdateThreeDPrintedObjectUseCase;
+import com.museotek.box.domain.scanobject.ScanObject;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -70,12 +71,16 @@ public class ScanObjectController {
 
     @GetMapping
     public List<ScanObjectResponse> listScanObjects(@PathVariable UUID orgId) {
-        return listScanObjectsForOrgQuery.execute(orgId).stream().map(ScanObjectResponse::from).toList();
+        List<ScanObject> scanObjects = listScanObjectsForOrgQuery.execute(orgId);
+        return scanObjects.stream()
+                .map(ScanObjectResponse::from)
+                .toList();
     }
 
     @GetMapping("/{scanObjectId}")
     public ScanObjectResponse getScanObject(@PathVariable UUID orgId, @PathVariable Long scanObjectId) {
-        return ScanObjectResponse.from(getScanObjectQuery.execute(orgId, scanObjectId));
+        ScanObject scanObject = getScanObjectQuery.execute(orgId, scanObjectId);
+        return ScanObjectResponse.from(scanObject);
     }
 
     @DeleteMapping("/{scanObjectId}")
@@ -87,7 +92,8 @@ public class ScanObjectController {
     @PostMapping("/coloured-cards")
     public ResponseEntity<ScanObjectResponse> createColouredCard(@PathVariable UUID orgId, @Valid @RequestBody CreateColouredCardRequest request) {
         var created = createColouredCardUseCase.execute(orgId, request.name(), request.rfidTag(), request.reusable(), request.scanObjectTypeId(), request.colour());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ScanObjectResponse.from(created));
+        ScanObjectResponse response = ScanObjectResponse.from(created);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PatchMapping("/coloured-cards/{scanObjectId}")
@@ -99,7 +105,8 @@ public class ScanObjectController {
     @PostMapping("/printed-images")
     public ResponseEntity<ScanObjectResponse> createPrintedImage(@PathVariable UUID orgId, @Valid @RequestBody CreatePrintedImageRequest request) {
         var created = createPrintedImageUseCase.execute(orgId, request.name(), request.rfidTag(), request.reusable(), request.scanObjectTypeId(), request.imageUrl());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ScanObjectResponse.from(created));
+        ScanObjectResponse response = ScanObjectResponse.from(created);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PatchMapping("/printed-images/{scanObjectId}")
@@ -111,7 +118,8 @@ public class ScanObjectController {
     @PostMapping("/three-d-printed-objects")
     public ResponseEntity<ScanObjectResponse> createThreeDPrintedObject(@PathVariable UUID orgId, @Valid @RequestBody CreateThreeDPrintedObjectRequest request) {
         var created = createThreeDPrintedObjectUseCase.execute(orgId, request.name(), request.rfidTag(), request.reusable(), request.scanObjectTypeId(), request.modelRef());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ScanObjectResponse.from(created));
+        ScanObjectResponse response = ScanObjectResponse.from(created);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PatchMapping("/three-d-printed-objects/{scanObjectId}")
@@ -123,7 +131,8 @@ public class ScanObjectController {
     @PostMapping("/drafts")
     public ResponseEntity<ScanObjectResponse> createDraft(@PathVariable UUID orgId, @Valid @RequestBody CreateDraftRequest request) {
         var created = createDraftUseCase.execute(orgId, request.name(), request.rfidTag(), request.reusable(), request.scanObjectTypeId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ScanObjectResponse.from(created));
+        ScanObjectResponse response = ScanObjectResponse.from(created);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PatchMapping("/drafts/{scanObjectId}")
