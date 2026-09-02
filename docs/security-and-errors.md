@@ -153,13 +153,21 @@ validation, δεν θα διαρρεύσει στο response.
 | `CatalogueBadResponseException` | 502 | `UPSTREAM_INVALID_RESPONSE` |
 | `BoxNotFoundException` | 404 | `BOX_NOT_FOUND` |
 | `DuplicateSerialNumberException` | 409 | `DUPLICATE_SERIAL_NUMBER` |
+| `ScanObjectNotFoundException` | 404 | `SCAN_OBJECT_NOT_FOUND` |
+| `DuplicateRfidTagException` | 409 | `DUPLICATE_RFID_TAG` |
+| `ScanObjectTypeNotFoundException` | 404 | `SCAN_OBJECT_TYPE_NOT_FOUND` |
 | `MethodArgumentNotValidException` (bean validation) | 400 | `VALIDATION_ERROR` |
 | οτιδήποτε άλλο (`Exception.class` catch-all) | 500 | `INTERNAL_ERROR` |
 
 `BoxNotFoundException`/`DuplicateSerialNumberException` (`domain/box/`) είναι τα πρώτα
 exceptions σε αυτόν τον πίνακα που δεν προέρχονται από το Catalogue καθόλου — 100%
 τοπικά, πετιούνται από `application/box/` use cases/queries πάνω σε δεδομένα που δεν
-έχουν καμία σχέση με Catalogue call.
+έχουν καμία σχέση με Catalogue call. Τα τρία `ScanObject*`/`DuplicateRfidTagException`
+(`domain/scanobject/`) ακολουθούν το ίδιο μοτίβο — 100% τοπικά, πετιούνται από
+`application/scanobject/` (βλ. `architecture-and-classes.md`, ενότητα 2). Το
+`ScanObjectNotFoundException` καλύπτει και την περίπτωση "βρέθηκε scan object, αλλά δεν
+είναι το αναμενόμενο subtype για αυτό το endpoint" — treated ως 404, όχι 500, ώστε να μη
+διαρρεύσει το πραγματικό subtype ενός id σε λάθος endpoint.
 
 **401 (authentication):** δεν παράγεται ποτέ από το `GlobalExceptionHandler` — είναι
 εξ ολοκλήρου του Spring Security OAuth2 resource server (missing/invalid/expired token),

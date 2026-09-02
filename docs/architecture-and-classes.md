@@ -231,6 +231,50 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
   χρειαστούν *δύο* guards μαζί (`OrgAccessGuard` για το ίδιο το Box + `ProjectAccessGuard`
   για το project που ανατίθεται), ξεχωριστό design pass.
 
+### `ScanObjectSupport` / list-get-delete / per-subtype create-update use cases (application/scanobject/)
+- **Ευθύνη:** το πρώτο πραγματικό feature πάνω στο `ScanObject` entity family (βάση +
+  4 subtypes μέσω JOINED inheritance — `ColouredCard`/`PrintedImage`/
+  `ThreeDPrintedObject`/`Draft`) και το `ScanObjectType` — μέχρι τώρα υπήρχαν μόνο τα
+  domain entities και δύο γυμνά repositories, χωρίς κανένα endpoint.
+- **Endpoints:** `GET` / `GET /{scanObjectId}` / `DELETE /{scanObjectId}` (γενικά, πάνω
+  στη βάση `ScanObject`), και `POST`/`PATCH` ανά subtype (`.../coloured-cards`,
+  `.../printed-images`, `.../three-d-printed-objects`, `.../drafts`) κάτω από
+  `/api/v1/organisations/{orgId}/scan-objects` (`ScanObjectController`).
+- **Γιατί ένα endpoint ανά subtype για create/update, όχι ένα κοινό με discriminator
+  field:** αποφεύγει polymorphic JSON deserialization, κάτι που δεν χρησιμοποιείται
+  πουθενά αλλού στο codebase. Το GET/LIST/DELETE μένουν γενικά πάνω στη βάση, αφού το
+  Hibernate ξέρει να φορτώνει το σωστό subtype από το discriminator column (`kind`)
+  αυτόματα.
+- **Κοινό μοτίβο:** όλα καλούν `OrgAccessGuard.requireAccess(orgId)` πρώτα — ίδιο μοτίβο
+  με το `Box`, αφού το `ScanObject` έχει δικό του `orgId` column (όχι project-scoped),
+  άρα ξαναχρησιμοποιεί το `OrgAccessGuard` αντί για νέο guard.
+- **`ScanObjectSupport`:** shared collaborator (όχι Query/UseCase) που καλούν όλα τα
+  create/update use cases — δύο μέθοδοι: `ensureRfidTagAvailable(rfidTag, excludeId)`
+  (no-op αν `rfidTag == null`, αφού το `Draft` μπορεί να μην έχει καθόλου tag· αλλιώς
+  ελέγχει μοναδικότητα, εξαιρώντας το ίδιο το entity σε update) και
+  `resolveType(orgId, scanObjectTypeId)` (`null` αν δεν δόθηκε id, αλλιώς
+  `ScanObjectTypeNotFoundException` αν το type δεν υπάρχει/δεν ανήκει στο org). Φτιάχτηκε
+  ξεχωριστή class ώστε αυτοί οι δύο έλεγχοι να μη γράφονται 8 φορές (μία ανά
+  create/update use case).
+- **Update use cases:** μετά το `findByIdAndOrgId`, ελέγχουν ρητά ότι το entity που
+  βρέθηκε είναι το αναμενόμενο subtype (π.χ. `instanceof ColouredCard`) — ένα
+  `PATCH /coloured-cards/{id}` πάνω σε id που ανήκει σε άλλο subtype γυρίζει
+  `ScanObjectNotFoundException` (404), όχι 500/`ClassCastException`.
+- **`ScanObjectType` handling:** δεν αποκτά δικό του `web/`/`application/` layer σε αυτό
+  το slice — μόνο ο παραπάνω inline έλεγχος μέσω `ScanObjectSupport.resolveType`.
+  Παραμένει μη-δημιουργήσιμο μέσω API προς το παρόν.
+
+| Subtype | Extra field | Create/Update endpoints |
+|---|---|---|
+| `ColouredCard` | `colour` (`CardColour` enum) | `POST`/`PATCH /coloured-cards` |
+| `PrintedImage` | `imageUrl` (String) | `POST`/`PATCH /printed-images` |
+| `ThreeDPrintedObject` | `modelRef` (String) | `POST`/`PATCH /three-d-printed-objects` |
+| `Draft` | καμία — μόνο τα κοινά πεδία | `POST`/`PATCH /drafts` |
+
+- **Εκτός scope αυτού του slice (σκόπιμα, όχι ξεχασμένα):** `ScanObjectType` δεν
+  αποκτά δικό του CRUD layer· χρησιμοποιείται μόνο μέσω του inline
+  `ScanObjectSupport.resolveType` ελέγχου.
+
 ### `ProjectCompanionSyncService`
 - **Ευθύνη:** οι δύο ακατέργαστες (raw) λειτουργίες πάνω στο companion row —
   `upsert(id, orgId, name)` και `softDelete(id)` — χωρίς καμία λογική για το πότε πρέπει
