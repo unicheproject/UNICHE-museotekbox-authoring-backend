@@ -2,11 +2,13 @@ package com.museotek.box.web.scanobject;
 
 import com.museotek.box.application.scanobject.CreateColouredCardUseCase;
 import com.museotek.box.application.scanobject.CreatePrintedImageUseCase;
+import com.museotek.box.application.scanobject.CreateDraftUseCase;
 import com.museotek.box.application.scanobject.CreateThreeDPrintedObjectUseCase;
 import com.museotek.box.application.scanobject.DeleteScanObjectUseCase;
 import com.museotek.box.application.scanobject.GetScanObjectQuery;
 import com.museotek.box.application.scanobject.ListScanObjectsForOrgQuery;
 import com.museotek.box.application.scanobject.UpdateColouredCardUseCase;
+import com.museotek.box.application.scanobject.UpdateDraftUseCase;
 import com.museotek.box.application.scanobject.UpdatePrintedImageUseCase;
 import com.museotek.box.application.scanobject.UpdateThreeDPrintedObjectUseCase;
 import jakarta.validation.Valid;
@@ -37,6 +39,8 @@ public class ScanObjectController {
     private final UpdatePrintedImageUseCase updatePrintedImageUseCase;
     private final CreateThreeDPrintedObjectUseCase createThreeDPrintedObjectUseCase;
     private final UpdateThreeDPrintedObjectUseCase updateThreeDPrintedObjectUseCase;
+    private final CreateDraftUseCase createDraftUseCase;
+    private final UpdateDraftUseCase updateDraftUseCase;
 
     public ScanObjectController(
             ListScanObjectsForOrgQuery listScanObjectsForOrgQuery,
@@ -47,7 +51,9 @@ public class ScanObjectController {
             CreatePrintedImageUseCase createPrintedImageUseCase,
             UpdatePrintedImageUseCase updatePrintedImageUseCase,
             CreateThreeDPrintedObjectUseCase createThreeDPrintedObjectUseCase,
-            UpdateThreeDPrintedObjectUseCase updateThreeDPrintedObjectUseCase
+            UpdateThreeDPrintedObjectUseCase updateThreeDPrintedObjectUseCase,
+            CreateDraftUseCase createDraftUseCase,
+            UpdateDraftUseCase updateDraftUseCase
     ) {
         this.listScanObjectsForOrgQuery = listScanObjectsForOrgQuery;
         this.getScanObjectQuery = getScanObjectQuery;
@@ -58,6 +64,8 @@ public class ScanObjectController {
         this.updatePrintedImageUseCase = updatePrintedImageUseCase;
         this.createThreeDPrintedObjectUseCase = createThreeDPrintedObjectUseCase;
         this.updateThreeDPrintedObjectUseCase = updateThreeDPrintedObjectUseCase;
+        this.createDraftUseCase = createDraftUseCase;
+        this.updateDraftUseCase = updateDraftUseCase;
     }
 
     @GetMapping
@@ -109,6 +117,18 @@ public class ScanObjectController {
     @PatchMapping("/three-d-printed-objects/{scanObjectId}")
     public ScanObjectResponse updateThreeDPrintedObject(@PathVariable UUID orgId, @PathVariable Long scanObjectId, @Valid @RequestBody UpdateThreeDPrintedObjectRequest request) {
         var updated = updateThreeDPrintedObjectUseCase.execute(orgId, scanObjectId, request.name(), request.rfidTag(), request.reusable(), request.scanObjectTypeId(), request.modelRef());
+        return ScanObjectResponse.from(updated);
+    }
+
+    @PostMapping("/drafts")
+    public ResponseEntity<ScanObjectResponse> createDraft(@PathVariable UUID orgId, @Valid @RequestBody CreateDraftRequest request) {
+        var created = createDraftUseCase.execute(orgId, request.name(), request.rfidTag(), request.reusable(), request.scanObjectTypeId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(ScanObjectResponse.from(created));
+    }
+
+    @PatchMapping("/drafts/{scanObjectId}")
+    public ScanObjectResponse updateDraft(@PathVariable UUID orgId, @PathVariable Long scanObjectId, @Valid @RequestBody UpdateDraftRequest request) {
+        var updated = updateDraftUseCase.execute(orgId, scanObjectId, request.name(), request.rfidTag(), request.reusable(), request.scanObjectTypeId());
         return ScanObjectResponse.from(updated);
     }
 }
