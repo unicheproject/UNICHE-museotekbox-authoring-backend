@@ -9,6 +9,9 @@ import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueTimeoutException;
 import com.museotek.box.infrastructure.catalogue.CatalogueUnavailableException;
 import com.museotek.box.infrastructure.catalogue.CatalogueUnprocessableException;
+import com.museotek.box.domain.scanobject.DuplicateRfidTagException;
+import com.museotek.box.domain.scanobject.ScanObjectNotFoundException;
+import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.infrastructure.logging.CorrelationIdFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +45,24 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorEnvelope handleDuplicateSerialNumber(DuplicateSerialNumberException e) {
         return new ErrorEnvelope("DUPLICATE_SERIAL_NUMBER", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(ScanObjectNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorEnvelope handleScanObjectNotFound(ScanObjectNotFoundException e) {
+        return new ErrorEnvelope("SCAN_OBJECT_NOT_FOUND", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(DuplicateRfidTagException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorEnvelope handleDuplicateRfidTag(DuplicateRfidTagException e) {
+        return new ErrorEnvelope("DUPLICATE_RFID_TAG", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(ScanObjectTypeNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorEnvelope handleScanObjectTypeNotFound(ScanObjectTypeNotFoundException e) {
+        return new ErrorEnvelope("SCAN_OBJECT_TYPE_NOT_FOUND", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(CatalogueForbiddenException.class)
