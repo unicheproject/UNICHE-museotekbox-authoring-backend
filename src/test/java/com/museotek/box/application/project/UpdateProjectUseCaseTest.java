@@ -6,6 +6,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.catalogue.CatalogueUpdateProjectRequest;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,7 +29,7 @@ class UpdateProjectUseCaseTest {
         CatalogueUpdateProjectRequest request = new CatalogueUpdateProjectRequest("Renamed Wing");
         CatalogueProjectDto updated = new CatalogueProjectDto(
                 id.toString(), orgId.toString(), "Renamed Wing", "wing", "ACTIVE",
-                new CatalogueProjectDto.CatalogueToolDto("museotek-box"));
+                new CatalogueProjectDto.CatalogueToolDto("museotek-box"), Instant.now(), Instant.now());
         when(catalogueClient.updateProject(id, request)).thenReturn(updated);
 
         CatalogueProjectDto result = useCase.execute(id, request);

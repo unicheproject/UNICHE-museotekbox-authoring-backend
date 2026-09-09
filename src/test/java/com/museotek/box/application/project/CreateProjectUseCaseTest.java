@@ -6,6 +6,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +31,7 @@ class CreateProjectUseCaseTest {
         CatalogueCreateProjectRequest request = new CatalogueCreateProjectRequest("Ancient Egypt Wing", "ancient-egypt", "museotek-box");
         CatalogueProjectDto created = new CatalogueProjectDto(
                 projectId.toString(), orgId.toString(), "Ancient Egypt Wing", "ancient-egypt", "ACTIVE",
-                new CatalogueProjectDto.CatalogueToolDto("museotek-box"));
+                new CatalogueProjectDto.CatalogueToolDto("museotek-box"), Instant.now(), Instant.now());
         when(catalogueClient.createProject(orgId, request)).thenReturn(created);
 
         CatalogueProjectDto result = useCase.execute(orgId, request);
@@ -59,7 +60,7 @@ class CreateProjectUseCaseTest {
         CatalogueCreateProjectRequest request = new CatalogueCreateProjectRequest("Wing", "wing", "museotek-box");
         CatalogueProjectDto created = new CatalogueProjectDto(
                 projectId.toString(), orgId.toString(), "Wing", "wing", "ACTIVE",
-                new CatalogueProjectDto.CatalogueToolDto("museotek-box"));
+                new CatalogueProjectDto.CatalogueToolDto("museotek-box"), Instant.now(), Instant.now());
         when(catalogueClient.createProject(orgId, request)).thenReturn(created);
         org.mockito.Mockito.doThrow(new RuntimeException("db down"))
                 .when(companionSync).upsert(any(), any(), any());

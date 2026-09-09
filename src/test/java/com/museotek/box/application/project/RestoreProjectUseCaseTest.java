@@ -5,6 +5,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,7 +27,7 @@ class RestoreProjectUseCaseTest {
         UUID orgId = UUID.randomUUID();
         CatalogueProjectDto restored = new CatalogueProjectDto(
                 id.toString(), orgId.toString(), "Wing", "wing", "ACTIVE",
-                new CatalogueProjectDto.CatalogueToolDto("museotek-box"));
+                new CatalogueProjectDto.CatalogueToolDto("museotek-box"), Instant.now(), Instant.now());
         when(catalogueClient.restoreProject(id)).thenReturn(restored);
 
         CatalogueProjectDto result = useCase.execute(id);

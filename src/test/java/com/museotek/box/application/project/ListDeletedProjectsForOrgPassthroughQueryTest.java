@@ -5,6 +5,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,7 +24,7 @@ class ListDeletedProjectsForOrgPassthroughQueryTest {
         UUID orgId = UUID.randomUUID();
         CatalogueProjectDto dto = new CatalogueProjectDto(
                 UUID.randomUUID().toString(), orgId.toString(), "Wing", "wing", "DELETED",
-                new CatalogueProjectDto.CatalogueToolDto("museotek-box"));
+                new CatalogueProjectDto.CatalogueToolDto("museotek-box"), Instant.now(), Instant.now());
         when(catalogueClient.listDeletedProjectsForOrg(orgId)).thenReturn(List.of(dto));
 
         assertThat(query.execute(orgId)).containsExactly(dto);

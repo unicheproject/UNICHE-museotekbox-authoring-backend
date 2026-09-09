@@ -6,6 +6,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +30,7 @@ class ProjectAccessGuardTest {
         UUID orgId = UUID.randomUUID();
         CatalogueProjectDto dto = new CatalogueProjectDto(
                 id.toString(), orgId.toString(), "Ancient Egypt Wing", "ancient-egypt", "ACTIVE",
-                new CatalogueProjectDto.CatalogueToolDto("museotek-box"));
+                new CatalogueProjectDto.CatalogueToolDto("museotek-box"), Instant.now(), Instant.now());
         when(catalogueClient.getProject(id)).thenReturn(dto);
 
         CatalogueProjectDto result = guard.requireAccess(id);

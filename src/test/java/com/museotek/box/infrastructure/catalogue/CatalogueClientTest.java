@@ -74,7 +74,9 @@ class CatalogueClientTest {
                 "name", name,
                 "slug", "ancient-egypt",
                 "status", "ACTIVE",
-                "tool", Map.of("slug", "museotek-box")
+                "tool", Map.of("slug", "museotek-box"),
+                "createdAt", "2026-01-01T10:00:00Z",
+                "updatedAt", "2026-01-02T11:30:00Z"
         );
     }
 
@@ -93,6 +95,8 @@ class CatalogueClientTest {
         assertThat(result.orgId()).isEqualTo(orgId.toString());
         assertThat(result.name()).isEqualTo("Ancient Egypt Wing");
         assertThat(result.tool().slug()).isEqualTo("museotek-box");
+        assertThat(result.createdAt()).isEqualTo(Instant.parse("2026-01-01T10:00:00Z"));
+        assertThat(result.updatedAt()).isEqualTo(Instant.parse("2026-01-02T11:30:00Z"));
     }
 
     @Test

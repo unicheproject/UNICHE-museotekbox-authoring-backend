@@ -4,6 +4,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueClient;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,7 +22,7 @@ class ListProjectsForOrgPassthroughQueryTest {
         UUID orgId = UUID.randomUUID();
         CatalogueProjectDto dto = new CatalogueProjectDto(
                 UUID.randomUUID().toString(), orgId.toString(), "Wing", "wing", "ACTIVE",
-                new CatalogueProjectDto.CatalogueToolDto("museotek-box"));
+                new CatalogueProjectDto.CatalogueToolDto("museotek-box"), Instant.now(), Instant.now());
         when(catalogueClient.listProjectsForOrg(orgId)).thenReturn(List.of(dto));
 
         List<CatalogueProjectDto> result = query.execute(orgId);
