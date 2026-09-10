@@ -135,6 +135,25 @@ public class CatalogueClient {
                 .body(CatalogueOrganisationDto.class));
     }
 
+    /** Invitations for a project, including accepted ones — the only way to see who currently
+     * holds a Curator membership without a dedicated Catalogue endpoint for it. Manager-of-org
+     * or admin only, per Catalogue's own rule on this endpoint. */
+    public List<CatalogueInvitationSummaryDto> listInvitationsForProject(UUID projectId) {
+        return call(() -> restClient.get()
+                .uri("/api/v1/projects/{id}/invitations", projectId)
+                .header(HttpHeaders.AUTHORIZATION, bearer())
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<CatalogueInvitationSummaryDto>>() {}));
+    }
+
+    public List<CatalogueManagerDto> listOrgManagers(UUID orgId) {
+        return call(() -> restClient.get()
+                .uri("/api/v1/organisations/{orgId}/managers", orgId)
+                .header(HttpHeaders.AUTHORIZATION, bearer())
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<CatalogueManagerDto>>() {}));
+    }
+
     // Catalogue's real endpoint is PUT, not PATCH — keep this call as PUT even though our own
     // /api/v1/projects/{id} controller endpoint is exposed as PATCH. Do not "fix" this to PATCH.
     public CatalogueProjectDto updateProject(UUID projectId, CatalogueUpdateProjectRequest request) {

@@ -1,6 +1,7 @@
 package com.museotek.box.web.organisation;
 
 import com.museotek.box.application.organisation.GetOrganisationQuery;
+import com.museotek.box.application.organisation.ListOrgMembersQuery;
 import com.museotek.box.application.project.CreateProjectUseCase;
 import com.museotek.box.application.project.ListDeletedProjectsForOrgPassthroughQuery;
 import com.museotek.box.application.project.ListProjectsForOrgPassthroughQuery;
@@ -31,6 +32,7 @@ public class OrganisationController {
     private final ListProjectsForOrgPassthroughQuery listProjectsForOrgQuery;
     private final ListDeletedProjectsForOrgPassthroughQuery listDeletedProjectsForOrgQuery;
     private final CreateProjectUseCase createProjectUseCase;
+    private final ListOrgMembersQuery listOrgMembersQuery;
     private final String toolSlug;
 
     public OrganisationController(
@@ -38,12 +40,14 @@ public class OrganisationController {
             ListProjectsForOrgPassthroughQuery listProjectsForOrgQuery,
             ListDeletedProjectsForOrgPassthroughQuery listDeletedProjectsForOrgQuery,
             CreateProjectUseCase createProjectUseCase,
+            ListOrgMembersQuery listOrgMembersQuery,
             @Value("${uniche.tool.slug}") String toolSlug
     ) {
         this.getOrganisationQuery = getOrganisationQuery;
         this.listProjectsForOrgQuery = listProjectsForOrgQuery;
         this.listDeletedProjectsForOrgQuery = listDeletedProjectsForOrgQuery;
         this.createProjectUseCase = createProjectUseCase;
+        this.listOrgMembersQuery = listOrgMembersQuery;
         this.toolSlug = toolSlug;
     }
 
@@ -66,6 +70,13 @@ public class OrganisationController {
         List<CatalogueProjectDto> deletedProjects = listDeletedProjectsForOrgQuery.execute(orgId);
         return deletedProjects.stream()
                 .map(ProjectResponse::from)
+                .toList();
+    }
+
+    @GetMapping("/{orgId}/members")
+    public List<OrgMemberResponse> listMembers(@PathVariable UUID orgId) {
+        return listOrgMembersQuery.execute(orgId).stream()
+                .map(OrgMemberResponse::from)
                 .toList();
     }
 

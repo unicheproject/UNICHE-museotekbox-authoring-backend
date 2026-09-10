@@ -2,6 +2,7 @@ package com.museotek.box.web.project;
 
 import com.museotek.box.application.project.DeleteProjectUseCase;
 import com.museotek.box.application.project.GetProjectQuery;
+import com.museotek.box.application.project.ListProjectMembersPassthroughQuery;
 import com.museotek.box.application.project.RestoreProjectUseCase;
 import com.museotek.box.application.project.UpdateProjectUseCase;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -27,17 +29,20 @@ public class ProjectController {
     private final UpdateProjectUseCase updateProjectUseCase;
     private final DeleteProjectUseCase deleteProjectUseCase;
     private final RestoreProjectUseCase restoreProjectUseCase;
+    private final ListProjectMembersPassthroughQuery listProjectMembersQuery;
 
     public ProjectController(
             GetProjectQuery getProjectQuery,
             UpdateProjectUseCase updateProjectUseCase,
             DeleteProjectUseCase deleteProjectUseCase,
-            RestoreProjectUseCase restoreProjectUseCase
+            RestoreProjectUseCase restoreProjectUseCase,
+            ListProjectMembersPassthroughQuery listProjectMembersQuery
     ) {
         this.getProjectQuery = getProjectQuery;
         this.updateProjectUseCase = updateProjectUseCase;
         this.deleteProjectUseCase = deleteProjectUseCase;
         this.restoreProjectUseCase = restoreProjectUseCase;
+        this.listProjectMembersQuery = listProjectMembersQuery;
     }
 
     @GetMapping("/{id}")
@@ -62,5 +67,12 @@ public class ProjectController {
     public ProjectResponse restoreProject(@PathVariable UUID id) {
         CatalogueProjectDto restored = restoreProjectUseCase.execute(id);
         return ProjectResponse.from(restored);
+    }
+
+    @GetMapping("/{id}/members")
+    public List<ProjectMemberResponse> listMembers(@PathVariable UUID id) {
+        return listProjectMembersQuery.execute(id).stream()
+                .map(ProjectMemberResponse::from)
+                .toList();
     }
 }
