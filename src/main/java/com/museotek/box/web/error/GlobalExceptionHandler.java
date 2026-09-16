@@ -21,6 +21,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
 
@@ -113,6 +114,20 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .toList();
         return new ErrorEnvelope("VALIDATION_ERROR", "Invalid request", details, requestId());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        // Don't echo the rejected value back (same rationale as handleValidation above).
+        String expectedType;
+        if (e.getRequiredType() != null) {
+            expectedType = e.getRequiredType().getSimpleName();
+        } else {
+            expectedType = "a different type";
+        }
+        String message = "Invalid value for parameter '" + e.getName() + "': expected " + expectedType;
+        return new ErrorEnvelope("INVALID_PARAMETER", message, List.of(), requestId());
     }
 
     @ExceptionHandler(Exception.class)

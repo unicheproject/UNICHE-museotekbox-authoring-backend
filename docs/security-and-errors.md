@@ -157,6 +157,7 @@ validation, δεν θα διαρρεύσει στο response.
 | `DuplicateRfidTagException` | 409 | `DUPLICATE_RFID_TAG` |
 | `ScanObjectTypeNotFoundException` | 404 | `SCAN_OBJECT_TYPE_NOT_FOUND` |
 | `MethodArgumentNotValidException` (bean validation) | 400 | `VALIDATION_ERROR` |
+| `MethodArgumentTypeMismatchException` (π.χ. μη-UUID path variable) | 400 | `INVALID_PARAMETER` |
 | οτιδήποτε άλλο (`Exception.class` catch-all) | 500 | `INTERNAL_ERROR` |
 
 `BoxNotFoundException`/`DuplicateSerialNumberException` (`domain/box/`) είναι τα πρώτα
@@ -328,3 +329,10 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
   Catalogue απορρίπτει ένα syntactically-valid αίτημα για λόγους business-rule, όχι
   malformed payload· γι' αυτό πήρε δικό του exception/code (`UPSTREAM_VALIDATION_ERROR`)
   αντί να μπερδευτεί με το τοπικό 400.
+- ~~Malformed path variable (π.χ. `orgId=1` αντί για UUID) γινόταν 500 αντί για 400~~ —
+  λυμένο: `GlobalExceptionHandler` πλέον πιάνει το
+  `MethodArgumentTypeMismatchException` (πετιέται πριν φτάσει καν σε controller code) και
+  το μεταφράζει σε 400 `INVALID_PARAMETER`. Το μήνυμα αναφέρει το όνομα του parameter
+  και τον αναμενόμενο τύπο (π.χ. `"Invalid value for parameter 'orgId': expected UUID"`)
+  αλλά ποτέ την ίδια την τιμή που στάλθηκε — ίδιο σκεπτικό με το `ErrorEnvelope.details`
+  fix παραπάνω (δεν εκτίθεται rejected value).

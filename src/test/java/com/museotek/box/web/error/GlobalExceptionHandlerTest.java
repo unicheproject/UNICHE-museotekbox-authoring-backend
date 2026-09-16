@@ -19,10 +19,13 @@ import org.slf4j.MDC;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -92,6 +95,10 @@ class GlobalExceptionHandlerTest {
 
         @PostMapping("/validated")
         void validated(@Valid @RequestBody ValidatedBody body) {
+        }
+
+        @GetMapping("/type-mismatch/{orgId}")
+        void typeMismatch(@PathVariable UUID orgId) {
         }
     }
 
@@ -199,6 +206,14 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("Invalid request"))
                 .andExpect(jsonPath("$.details[0]").value(org.hamcrest.Matchers.containsString("name")));
+    }
+
+    @Test
+    void methodArgumentTypeMismatchException_mapsTo400WithInvalidParameterCode() throws Exception {
+        mockMvc.perform(get("/test/type-mismatch/not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.message").value("Invalid value for parameter 'orgId': expected UUID"));
     }
 
     @Test
