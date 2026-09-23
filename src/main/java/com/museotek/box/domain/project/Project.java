@@ -34,4 +34,8 @@ public class Project {
 
     @Column
     private Instant deletedAt;
+
+    // Bumped on every experience-document write; the client echoes it back as If-Match.
+    @Column(nullable = false)
+    private int docVersion;
 }
