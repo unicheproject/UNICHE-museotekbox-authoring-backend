@@ -38,4 +38,15 @@ public class Project {
     // Bumped on every experience-document write; the client echoes it back as If-Match.
     @Column(nullable = false)
     private int docVersion;
+
+    // Next unused scene_key/block_key/rule_key value for this project; a client-invented key
+    // for a new row must be >= this. Bumped past the highest key used by every write.
+    @Column(nullable = false)
+    private int nextSceneSeq = 1;
+
+    @Column(nullable = false)
+    private int nextBlockSeq = 1;
+
+    @Column(nullable = false)
+    private int nextRuleSeq = 1;
 }

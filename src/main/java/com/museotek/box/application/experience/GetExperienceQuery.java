@@ -42,10 +42,15 @@ public class GetExperienceQuery {
     public ExperienceView execute(UUID projectId) {
         projectAccessGuard.requireAccess(projectId);
 
-        int version = projectRepository.findById(projectId).map(Project::getDocVersion).orElseThrow();
+        Project project = projectRepository.findById(projectId).orElseThrow();
+        int version = project.getDocVersion();
+        int nextSceneSeq = project.getNextSceneSeq();
+        int nextBlockSeq = project.getNextBlockSeq();
+        int nextRuleSeq = project.getNextRuleSeq();
+
         List<Scene> scenes = sceneRepository.findByProjectIdOrderByPositionAsc(projectId);
         if (scenes.isEmpty()) {
-            return new ExperienceView(projectId, version, List.of());
+            return new ExperienceView(projectId, version, nextSceneSeq, nextBlockSeq, nextRuleSeq, List.of());
         }
 
         List<Long> sceneIds = scenes.stream().map(Scene::getId).toList();
@@ -60,6 +65,6 @@ public class GetExperienceQuery {
                         blocksByScene.getOrDefault(scene.getId(), List.of()),
                         rulesByScene.getOrDefault(scene.getId(), List.of())))
                 .toList();
-        return new ExperienceView(projectId, version, sceneViews);
+        return new ExperienceView(projectId, version, nextSceneSeq, nextBlockSeq, nextRuleSeq, sceneViews);
     }
 }

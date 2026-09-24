@@ -40,7 +40,7 @@ class GetExperienceQueryTest {
 
     @Test
     void groupsEachScenesOwnBlocksAndRulesUnderIt() {
-        stubProjectVersion(3);
+        stubProject(3, 4, 5, 6);
         Scene first = scene(10L, "s1", 0);
         Scene second = scene(20L, "s2", 1);
         when(sceneRepository.findByProjectIdOrderByPositionAsc(projectId)).thenReturn(List.of(first, second));
@@ -53,6 +53,9 @@ class GetExperienceQueryTest {
 
         assertThat(view.projectId()).isEqualTo(projectId);
         assertThat(view.version()).isEqualTo(3);
+        assertThat(view.nextSceneSeq()).isEqualTo(4);
+        assertThat(view.nextBlockSeq()).isEqualTo(5);
+        assertThat(view.nextRuleSeq()).isEqualTo(6);
         assertThat(view.scenes()).hasSize(2);
 
         ExperienceView.SceneView firstView = view.scenes().get(0);
@@ -67,12 +70,13 @@ class GetExperienceQueryTest {
 
     @Test
     void projectWithNoScenes_returnsEmptyDocumentWithoutQueryingBlocksOrRules() {
-        stubProjectVersion(0);
+        stubProject(0, 1, 1, 1);
         when(sceneRepository.findByProjectIdOrderByPositionAsc(projectId)).thenReturn(List.of());
 
         ExperienceView view = query.execute(projectId);
 
         assertThat(view.version()).isZero();
+        assertThat(view.nextSceneSeq()).isEqualTo(1);
         assertThat(view.scenes()).isEmpty();
         verifyNoInteractions(blockRepository, ruleRepository);
     }
@@ -86,9 +90,12 @@ class GetExperienceQueryTest {
         verifyNoInteractions(projectRepository, sceneRepository, blockRepository, ruleRepository);
     }
 
-    private void stubProjectVersion(int version) {
+    private void stubProject(int version, int nextSceneSeq, int nextBlockSeq, int nextRuleSeq) {
         Project project = new Project();
         project.setDocVersion(version);
+        project.setNextSceneSeq(nextSceneSeq);
+        project.setNextBlockSeq(nextBlockSeq);
+        project.setNextRuleSeq(nextRuleSeq);
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
     }
 
