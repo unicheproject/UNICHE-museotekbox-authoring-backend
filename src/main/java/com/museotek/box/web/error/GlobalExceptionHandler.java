@@ -2,6 +2,7 @@ package com.museotek.box.web.error;
 
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
+import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
@@ -105,6 +106,12 @@ public class GlobalExceptionHandler {
     public ErrorEnvelope handleBadResponse(CatalogueBadResponseException e) {
         log.error("Catalogue returned an unexpected response: {}", e.getMessage());
         return new ErrorEnvelope("UPSTREAM_INVALID_RESPONSE", "The UNICHE Catalogue returned a response this backend cannot use.", List.of(), requestId());
+    }
+
+    @ExceptionHandler(ExperienceValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleExperienceValidation(ExperienceValidationException e) {
+        return new ErrorEnvelope("VALIDATION_ERROR", "Invalid experience document", e.getErrors(), requestId());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

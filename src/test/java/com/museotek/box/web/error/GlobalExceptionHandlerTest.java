@@ -2,6 +2,7 @@ package com.museotek.box.web.error;
 
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
+import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
@@ -91,6 +92,12 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/duplicate-serial-number")
         void duplicateSerialNumber() {
             throw new DuplicateSerialNumberException("A box with serial number SN-1 already exists");
+        }
+
+        @GetMapping("/experience-validation")
+        void experienceValidation() {
+            throw new ExperienceValidationException(java.util.List.of(
+                    "scene_key '01' is not well-formed (expected a positive integer string)"));
         }
 
         @PostMapping("/validated")
@@ -195,6 +202,15 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DUPLICATE_SERIAL_NUMBER"))
                 .andExpect(jsonPath("$.message").value("A box with serial number SN-1 already exists"));
+    }
+
+    @Test
+    void experienceValidationException_mapsTo400WithErrorsAsDetails() throws Exception {
+        mockMvc.perform(get("/test/experience-validation"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Invalid experience document"))
+                .andExpect(jsonPath("$.details[0]").value(org.hamcrest.Matchers.containsString("scene_key")));
     }
 
     @Test
