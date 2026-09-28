@@ -19,10 +19,12 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 
@@ -135,6 +137,21 @@ public class GlobalExceptionHandler {
         }
         String message = "Invalid value for parameter '" + e.getName() + "': expected " + expectedType;
         return new ErrorEnvelope("INVALID_PARAMETER", message, List.of(), requestId());
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorEnvelope handleNoResourceFound(NoResourceFoundException e) {
+        // Without this, an unmapped route (typo, method the path doesn't support, an endpoint
+        // that isn't built yet) falls through to handleUnexpected below and 500s instead of the
+        // clean 404 Spring itself intends for this exception.
+        return new ErrorEnvelope("NOT_FOUND", "No endpoint for " + e.getHttpMethod() + " " + e.getResourcePath(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleMissingHeader(MissingRequestHeaderException e) {
+        return new ErrorEnvelope("MISSING_HEADER", "Required header '" + e.getHeaderName() + "' is missing", List.of(), requestId());
     }
 
     @ExceptionHandler(Exception.class)

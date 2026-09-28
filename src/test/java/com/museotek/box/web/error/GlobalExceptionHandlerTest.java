@@ -17,14 +17,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
+import org.springframework.http.HttpMethod;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.UUID;
 
@@ -106,6 +109,15 @@ class GlobalExceptionHandlerTest {
 
         @GetMapping("/type-mismatch/{orgId}")
         void typeMismatch(@PathVariable UUID orgId) {
+        }
+
+        @GetMapping("/missing-header")
+        void missingHeader(@RequestHeader("If-Match") String ifMatch) {
+        }
+
+        @GetMapping("/no-resource")
+        void noResourceFound() throws NoResourceFoundException {
+            throw new NoResourceFoundException(HttpMethod.GET, "test/no-resource");
         }
     }
 
@@ -230,6 +242,22 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
                 .andExpect(jsonPath("$.message").value("Invalid value for parameter 'orgId': expected UUID"));
+    }
+
+    @Test
+    void missingRequestHeaderException_mapsTo400WithMissingHeaderCode() throws Exception {
+        mockMvc.perform(get("/test/missing-header"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MISSING_HEADER"))
+                .andExpect(jsonPath("$.message").value("Required header 'If-Match' is missing"));
+    }
+
+    @Test
+    void noResourceFoundException_mapsTo404NotUnhandled500() throws Exception {
+        mockMvc.perform(get("/test/no-resource"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("No endpoint for GET test/no-resource"));
     }
 
     @Test
