@@ -156,8 +156,11 @@ validation, δεν θα διαρρεύσει στο response.
 | `ScanObjectNotFoundException` | 404 | `SCAN_OBJECT_NOT_FOUND` |
 | `DuplicateRfidTagException` | 409 | `DUPLICATE_RFID_TAG` |
 | `ScanObjectTypeNotFoundException` | 404 | `SCAN_OBJECT_TYPE_NOT_FOUND` |
+| `ExperienceValidationException` (`domain/experience/`) | 400 | `VALIDATION_ERROR` |
 | `MethodArgumentNotValidException` (bean validation) | 400 | `VALIDATION_ERROR` |
 | `MethodArgumentTypeMismatchException` (π.χ. μη-UUID path variable) | 400 | `INVALID_PARAMETER` |
+| `MissingRequestHeaderException` (π.χ. απόν mandatory `If-Match`) | 400 | `MISSING_HEADER` |
+| `NoResourceFoundException` (Spring, καμία route δεν ταιριάζει) | 404 | `NOT_FOUND` |
 | οτιδήποτε άλλο (`Exception.class` catch-all) | 500 | `INTERNAL_ERROR` |
 
 `BoxNotFoundException`/`DuplicateSerialNumberException` (`domain/box/`) είναι τα πρώτα
@@ -173,6 +176,13 @@ exceptions σε αυτόν τον πίνακα που δεν προέρχοντ�
 **401 (authentication):** δεν παράγεται ποτέ από το `GlobalExceptionHandler` — είναι
 εξ ολοκλήρου του Spring Security OAuth2 resource server (missing/invalid/expired token),
 ξεχωριστός μηχανισμός, δεν περνάει ποτέ από αυτή τη class.
+
+**409 (stale `If-Match` στο experience write):** ούτε αυτό παράγεται από τον
+`GlobalExceptionHandler` — το `StaleExperienceVersionException` πιάνεται τοπικά μέσα
+στο ίδιο το `ExperienceController` (δικό του `@ExceptionHandler`, override του global
+advice για αυτόν τον controller), γιατί το response body πρέπει να είναι το ίδιο το
+τρέχον document (ξαναχτισμένο μέσω `GetExperienceQuery`), όχι ένα generic `ErrorEnvelope`
+— βλ. `architecture-and-classes.md`, ενότητα 2, για το `SaveExperienceUseCase`.
 
 ### `CatalogueClient` — ενιαίο status mapping αντί για ανά-μέθοδο
 
@@ -336,3 +346,10 @@ Tracing/OpenTelemetry εξάρτηση στο classpath) — αυτό θα χρ�
   και τον αναμενόμενο τύπο (π.χ. `"Invalid value for parameter 'orgId': expected UUID"`)
   αλλά ποτέ την ίδια την τιμή που στάλθηκε — ίδιο σκεπτικό με το `ErrorEnvelope.details`
   fix παραπάνω (δεν εκτίθεται rejected value).
+- ~~Ένα άγνωστο route (typo, method που το path δεν υποστηρίζει, endpoint που δεν έχει
+  χτιστεί ακόμα) μπορούσε να γυρίσει 500 αντί για καθαρό 404, ανάλογα με το HTTP
+  method~~ — λυμένο: βρέθηκε ενώ δοκιμαζόταν το ίδιο το experience write endpoint
+  (χωρίς το mandatory `If-Match`, και ξεχωριστά ένα ακόμα ανύπαρκτο endpoint).
+  `GlobalExceptionHandler` πιάνει πλέον ρητά το Spring `NoResourceFoundException`
+  (→ 404 `NOT_FOUND`, αντί να πέσει στο γενικό catch-all) και το
+  `MissingRequestHeaderException` (→ 400 `MISSING_HEADER`, π.χ. απόν `If-Match`).

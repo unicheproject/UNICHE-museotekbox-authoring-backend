@@ -275,6 +275,65 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
   αποκτά δικό του CRUD layer· χρησιμοποιείται μόνο μέσω του inline
   `ScanObjectSupport.resolveType` ελέγχου.
 
+### `GetExperienceQuery` / `ExperienceDocumentValidator` / `SaveExperienceUseCase` (application/experience/)
+- **Ευθύνη:** το πρώτο πραγματικό feature πάνω στο Scene/Block/Rule μοντέλο — η
+  "εμπειρία" ενός project εκτίθεται ως **ένα** έγγραφο (document model), όχι per-entity
+  CRUD. Μέχρι τώρα υπήρχαν μόνο τα domain entities (`Scene`/`Block`/`Rule`) χωρίς κανένα
+  endpoint. Η επιλογή document-model έναντι per-entity REST έγινε ρητά — βλ.
+  `docs/scene-block-rule-write-model-comparison.md` — κυρίως λόγω του planned frontend
+  UX (batched edits, ένα Save button, όχι autosave), που κάνει το atomicity/ordering/
+  conflict-detection του document model να αξίζει το επιπλέον κόστος.
+- **Endpoints:** `GET`/`PUT /api/v1/projects/{projectId}/experience` (`ExperienceController`).
+- **`GetExperienceQuery`:** διαβάζει όλα τα scenes ενός project (με τα blocks/rules τους
+  ομαδοποιημένα από κάτω) plus το τρέχον `docVersion` και τα τρία running counters
+  (`nextSceneSeq`/`nextBlockSeq`/`nextRuleSeq`, πεδία στο `Project`) — αυτά επιστρέφονται
+  ώστε ο client να μπορεί να επινοήσει ένα valid νέο key χωρίς να μαντεύει από τα ήδη
+  υπάρχοντα. Το `version` επιστρέφεται και ως response body field και ως `ETag` header.
+- **`ExperienceDocumentValidator`:** καθαρή υλοποίηση (καμία repository access) των
+  βημάτων 1-3 του write algorithm (βλ. `docs/proposal-scene-block-rule-document-model.md`):
+  κάθε key well-formed & unique σε **όλο** το έγγραφο (project-wide counter ανά τύπο key,
+  όχι per-scene, παρόλο που το DB unique constraint είναι scene-scoped) · κάθε
+  `target_scene_key` λύνεται σε οποιαδήποτε σκηνή του εγγράφου, ενώ `target_block_key`/
+  `trigger_block_key` λύνονται μόνο μέσα στη **δική τους** σκηνή · ακριβώς μία σκηνή
+  `is_start` · freshness (ένα καινούριο key πρέπει να είναι `>=` το αντίστοιχο project
+  counter, ένα ήδη υπάρχον key εξαιρείται από αυτόν τον έλεγχο). Παίρνει σαν input ένα
+  `ExperienceWriteContext` (existing keys + τα τρία counters, snapshot που φτιάχνει ο
+  caller) — δεν αγγίζει repository το ίδιο.
+- **`SaveExperienceUseCase`:** τα βήματα 4-5 (diff+apply, bump version), μέσα σε ένα
+  `@Transactional`. Σειρά: (1) `ProjectAccessGuard.requireAccess` (ίδιο πρώτο βήμα με
+  κάθε project-scoped feature) · (2) `If-Match` έναντι του `Project.docVersion` — 409 +
+  το τρέχον document αν stale (βλ. `security-and-errors.md`, ενότητα 2, γιατί αυτό ΔΕΝ
+  περνάει από τον `GlobalExceptionHandler`) · (3) ο validator παραπάνω, plus ένα δικό
+  του επιπλέον έλεγχο well-formedness για τα `BlockType`/`RuleEventType`/`RuleAction`
+  enum strings (βλ. παρακάτω γιατί χρειάζεται) · (4) διαγραφή ό,τι λείπει από το
+  έγγραφο, **παιδιά πριν γονείς** (rules/blocks πριν scenes — το FK constraint υπάρχει
+  μόνο scene→blocks/rules, όχι ανάμεσα σε rules/blocks) · (5) upsert το καθένα by key ·
+  (6) bump `docVersion` +1 και τα τρία counters με `Math.max` έναντι του ήδη υπάρχοντος
+  (ποτέ προς τα πίσω — μια write που δεν εισάγει νέα keys αφήνει τα counters αμετάβλητα).
+- **Γιατί το `ExperienceDocument`/`SceneDocument`/`BlockDocument`/`RuleDocument` κρατάνε
+  `type`/`eventType`/`action` ως plain `String`, όχι domain enum:** σκόπιμο — κρατάει τον
+  `ExperienceDocumentValidator` entity-independent, και αφήνει το `SaveExperienceUseCase`
+  να κάνει το δικό του `Enum.valueOf(...)` έλεγχο πριν εφαρμόσει οτιδήποτε στη βάση, ώστε
+  μια λάθος τιμή (π.χ. `"NOT_A_TYPE"`) να γυρίσει καθαρό 400
+  (`ExperienceValidationException`) αντί για raw `IllegalArgumentException`/500 στη μέση
+  του apply.
+- **`ScanObjectSupport.resolveType` επαναχρησιμοποιείται** για το `Scene.initCardType`
+  και το `Rule.scanObjectType` — ίδιο collaborator με το `ScanObject` feature (βλ.
+  παραπάνω στην ίδια ενότητα), όχι νέος κώδικας.
+- **Εξωτερικοί πόροι:** `ProjectAccessGuard` (άρα έμμεσα Catalogue, μία φορά ανά write) +
+  τοπικά `scenes`/`blocks`/`rules`/`projects`. Καμία άλλη απευθείας κλήση Catalogue.
+- **Concurrency:** optimistic, μέσω `If-Match`/`docVersion` — όχι pessimistic
+  lock/`SELECT ... FOR UPDATE`.
+- **Deletion policy — block-the-whole-Save:** αν ένα key λείπει από το νέο έγγραφο αλλά
+  κάτι άλλο ακόμα το target-άρει (`target_scene_key`/`target_block_key`/
+  `trigger_block_key`), ο validator (βήμα 2, μέσα στο "validate graph") απορρίπτει
+  ολόκληρο το write πριν εφαρμοστεί οτιδήποτε — καμία partial apply, κανένα nulled
+  dangling reference. Ίδια πολιτική και στα δύο proposal docs.
+- **Γιατί ξεχωριστές classes:** ο validator (καθαρή λογική, τεστάρεται χωρίς Spring
+  context/repository mocks) και το use case (persistence-owning, transactional) έχουν
+  ξεκάθαρα διαφορετική ευθύνη — το ίδιο διαχωρισμό step 1-3 vs step 4-5 προτείνει και το
+  ίδιο το proposal doc.
+
 ### `ProjectCompanionSyncService`
 - **Ευθύνη:** οι δύο ακατέργαστες (raw) λειτουργίες πάνω στο companion row —
   `upsert(id, orgId, name)` και `softDelete(id)` — χωρίς καμία λογική για το πότε πρέπει
