@@ -8,4 +8,6 @@ import java.util.UUID;
 
 public interface SceneRepository extends JpaRepository<Scene, Long> {
     List<Scene> findByProjectIdOrderByPositionAsc(UUID projectId);
+
+    boolean existsByInitCardTypeId(Long initCardTypeId);
 }

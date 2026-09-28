@@ -12,6 +12,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueUnavailableException;
 import com.museotek.box.infrastructure.catalogue.CatalogueUnprocessableException;
 import com.museotek.box.domain.scanobject.DuplicateRfidTagException;
 import com.museotek.box.domain.scanobject.ScanObjectNotFoundException;
+import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.infrastructure.logging.CorrelationIdFilter;
 import org.slf4j.Logger;
@@ -67,6 +68,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorEnvelope handleScanObjectTypeNotFound(ScanObjectTypeNotFoundException e) {
         return new ErrorEnvelope("SCAN_OBJECT_TYPE_NOT_FOUND", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(ScanObjectTypeInUseException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorEnvelope handleScanObjectTypeInUse(ScanObjectTypeInUseException e) {
+        return new ErrorEnvelope("SCAN_OBJECT_TYPE_IN_USE", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(CatalogueForbiddenException.class)

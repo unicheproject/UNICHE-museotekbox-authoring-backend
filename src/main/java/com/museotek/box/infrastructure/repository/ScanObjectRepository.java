@@ -13,4 +13,6 @@ public interface ScanObjectRepository extends JpaRepository<ScanObject, Long> {
     List<ScanObject> findByOrgId(UUID orgId);
 
     Optional<ScanObject> findByIdAndOrgId(Long id, UUID orgId);
+
+    boolean existsByScanObjectTypeId(Long scanObjectTypeId);
 }

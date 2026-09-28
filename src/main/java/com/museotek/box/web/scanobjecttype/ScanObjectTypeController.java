@@ -1,6 +1,7 @@
 package com.museotek.box.web.scanobjecttype;
 
 import com.museotek.box.application.scanobjecttype.CreateScanObjectTypeUseCase;
+import com.museotek.box.application.scanobjecttype.DeleteScanObjectTypeUseCase;
 import com.museotek.box.application.scanobjecttype.GetScanObjectTypeQuery;
 import com.museotek.box.application.scanobjecttype.ListScanObjectTypesForOrgQuery;
 import com.museotek.box.application.scanobjecttype.UpdateScanObjectTypeUseCase;
@@ -8,6 +9,7 @@ import com.museotek.box.domain.scanobject.ScanObjectType;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,17 +29,20 @@ public class ScanObjectTypeController {
     private final ListScanObjectTypesForOrgQuery listScanObjectTypesForOrgQuery;
     private final GetScanObjectTypeQuery getScanObjectTypeQuery;
     private final UpdateScanObjectTypeUseCase updateScanObjectTypeUseCase;
+    private final DeleteScanObjectTypeUseCase deleteScanObjectTypeUseCase;
 
     public ScanObjectTypeController(
             CreateScanObjectTypeUseCase createScanObjectTypeUseCase,
             ListScanObjectTypesForOrgQuery listScanObjectTypesForOrgQuery,
             GetScanObjectTypeQuery getScanObjectTypeQuery,
-            UpdateScanObjectTypeUseCase updateScanObjectTypeUseCase
+            UpdateScanObjectTypeUseCase updateScanObjectTypeUseCase,
+            DeleteScanObjectTypeUseCase deleteScanObjectTypeUseCase
     ) {
         this.createScanObjectTypeUseCase = createScanObjectTypeUseCase;
         this.listScanObjectTypesForOrgQuery = listScanObjectTypesForOrgQuery;
         this.getScanObjectTypeQuery = getScanObjectTypeQuery;
         this.updateScanObjectTypeUseCase = updateScanObjectTypeUseCase;
+        this.deleteScanObjectTypeUseCase = deleteScanObjectTypeUseCase;
     }
 
     @PostMapping
@@ -68,5 +73,11 @@ public class ScanObjectTypeController {
     ) {
         ScanObjectType updated = updateScanObjectTypeUseCase.execute(orgId, scanObjectTypeId, request.name());
         return ScanObjectTypeResponse.from(updated);
+    }
+
+    @DeleteMapping("/{scanObjectTypeId}")
+    public ResponseEntity<Void> deleteScanObjectType(@PathVariable UUID orgId, @PathVariable Long scanObjectTypeId) {
+        deleteScanObjectTypeUseCase.execute(orgId, scanObjectTypeId);
+        return ResponseEntity.noContent().build();
     }
 }

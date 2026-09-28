@@ -3,6 +3,7 @@ package com.museotek.box.web.error;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
+import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
@@ -95,6 +96,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/duplicate-serial-number")
         void duplicateSerialNumber() {
             throw new DuplicateSerialNumberException("A box with serial number SN-1 already exists");
+        }
+
+        @GetMapping("/scan-object-type-in-use")
+        void scanObjectTypeInUse() {
+            throw new ScanObjectTypeInUseException("Scan object type 1 is still referenced by a scan object, scene, or rule");
         }
 
         @GetMapping("/experience-validation")
@@ -214,6 +220,14 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DUPLICATE_SERIAL_NUMBER"))
                 .andExpect(jsonPath("$.message").value("A box with serial number SN-1 already exists"));
+    }
+
+    @Test
+    void scanObjectTypeInUseException_mapsTo409WithScanObjectTypeInUseCode() throws Exception {
+        mockMvc.perform(get("/test/scan-object-type-in-use"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SCAN_OBJECT_TYPE_IN_USE"))
+                .andExpect(jsonPath("$.message").value("Scan object type 1 is still referenced by a scan object, scene, or rule"));
     }
 
     @Test
