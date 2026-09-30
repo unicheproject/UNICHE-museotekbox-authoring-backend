@@ -21,6 +21,16 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * The project <b>as an item</b>: details, rename, delete, restore, members. Everything here is
+ * forwarded to Catalogue.
+ *
+ * <p>A project is the same thing as an experience. This controller never touches the
+ * experience's content (scenes, blocks, rules). That is {@code ExperienceController}, under
+ * {@code /projects/{projectId}/experience}. Listing and creating projects live under the org
+ * ({@code OrganisationController}), and putting a project on a box under {@code BoxController}.
+ * See README, "Project vs Experience".
+ */
 @RestController
 @RequestMapping("/api/v1/projects")
 public class ProjectController {

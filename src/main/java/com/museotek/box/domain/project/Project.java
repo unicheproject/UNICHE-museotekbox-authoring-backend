@@ -15,6 +15,22 @@ import java.util.UUID;
  * Local companion row for a Catalogue project, keyed by the Catalogue's own project UUID
  * (no separate id-mapping table). Populated via "create-up" and "lazy-JIT" on access;
  * soft-deleted when Catalogue no longer recognises the id.
+ *
+ * <p><b>Project = experience.</b> "Project" is the platform's word, "experience" is what a
+ * curator builds inside it. There is no separate {@code Experience} entity: the experience is
+ * the {@code Scene}/{@code Block}/{@code Rule} rows that point to this project.
+ *
+ * <p>Catalogue owns the project as a platform item (name, status, members). This row keeps only
+ * what MuseotekBox needs:
+ * <ul>
+ *   <li>something for our own tables to reference ({@code scenes}, {@code box_projects},
+ *       {@code boxes.current_project_id});</li>
+ *   <li>the experience's bookkeeping: {@link #docVersion} for the save conflict check, and the
+ *       key counters for new scenes/blocks/rules.</li>
+ * </ul>
+ * {@link #name} and {@link #orgId} are copies, refreshed by {@code ProjectAccessGuard} whenever
+ * the project is opened. API responses never read the name from here. They read it live from
+ * Catalogue. See README, "Project vs Experience".
  */
 @Entity
 @Table(name = "projects")
