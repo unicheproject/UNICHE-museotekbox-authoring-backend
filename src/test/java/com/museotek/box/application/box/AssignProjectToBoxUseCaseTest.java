@@ -1,6 +1,7 @@
 package com.museotek.box.application.box;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.application.projectaccess.ProjectAccessGuard;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxNotFoundException;
@@ -94,10 +95,10 @@ class AssignProjectToBoxUseCaseTest {
     }
 
     @Test
-    void orgAccessDenied_neverTouchesRepository() {
-        when(orgAccessGuard.requireAccess(orgId)).thenThrow(new CatalogueForbiddenException("not a member"));
+    void notOrgManager_neverTouchesRepository() {
+        when(orgAccessGuard.requireManager(orgId)).thenThrow(new OrgManagerRequiredException("not a manager"));
 
-        assertThatThrownBy(() -> useCase.execute(orgId, 1L, projectId)).isInstanceOf(CatalogueForbiddenException.class);
+        assertThatThrownBy(() -> useCase.execute(orgId, 1L, projectId)).isInstanceOf(OrgManagerRequiredException.class);
 
         verifyNoInteractions(boxRepository);
     }

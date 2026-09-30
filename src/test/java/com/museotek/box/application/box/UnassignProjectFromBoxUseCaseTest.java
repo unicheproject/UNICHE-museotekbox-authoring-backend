@@ -1,11 +1,10 @@
 package com.museotek.box.application.box;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
-import com.museotek.box.application.projectaccess.ProjectAccessGuard;
+import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.project.Project;
-import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import org.junit.jupiter.api.Test;
 
@@ -21,10 +20,9 @@ import static org.mockito.Mockito.when;
 class UnassignProjectFromBoxUseCaseTest {
 
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
-    private final ProjectAccessGuard projectAccessGuard = mock(ProjectAccessGuard.class);
     private final BoxRepository boxRepository = mock(BoxRepository.class);
     private final UnassignProjectFromBoxUseCase useCase =
-            new UnassignProjectFromBoxUseCase(orgAccessGuard, projectAccessGuard, boxRepository);
+            new UnassignProjectFromBoxUseCase(orgAccessGuard, boxRepository);
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID projectId = UUID.randomUUID();
@@ -53,31 +51,17 @@ class UnassignProjectFromBoxUseCaseTest {
     }
 
     @Test
-    void projectAccessDenied_removesNothing() {
-        Box box = new Box();
-        box.getAssignedProjects().add(projectWithId(projectId));
-        when(boxRepository.findByIdAndOrgId(1L, orgId)).thenReturn(Optional.of(box));
-        when(projectAccessGuard.requireAccess(projectId)).thenThrow(new CatalogueForbiddenException("not a member"));
-
-        assertThatThrownBy(() -> useCase.execute(orgId, 1L, projectId)).isInstanceOf(CatalogueForbiddenException.class);
-
-        assertThat(box.getAssignedProjects()).hasSize(1);
-    }
-
-    @Test
     void boxNotFoundForOrg_throws() {
         when(boxRepository.findByIdAndOrgId(1L, orgId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.execute(orgId, 1L, projectId)).isInstanceOf(BoxNotFoundException.class);
-
-        verifyNoInteractions(projectAccessGuard);
     }
 
     @Test
-    void orgAccessDenied_neverTouchesRepository() {
-        when(orgAccessGuard.requireAccess(orgId)).thenThrow(new CatalogueForbiddenException("not a member"));
+    void notOrgManager_neverTouchesRepository() {
+        when(orgAccessGuard.requireManager(orgId)).thenThrow(new OrgManagerRequiredException("not a manager"));
 
-        assertThatThrownBy(() -> useCase.execute(orgId, 1L, projectId)).isInstanceOf(CatalogueForbiddenException.class);
+        assertThatThrownBy(() -> useCase.execute(orgId, 1L, projectId)).isInstanceOf(OrgManagerRequiredException.class);
 
         verifyNoInteractions(boxRepository);
     }

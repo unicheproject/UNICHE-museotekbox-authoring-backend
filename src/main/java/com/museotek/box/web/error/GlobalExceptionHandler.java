@@ -1,5 +1,6 @@
 package com.museotek.box.web.error;
 
+import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
@@ -87,6 +88,13 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ErrorEnvelope handleForbidden(CatalogueForbiddenException e) {
         // Unlike 404/400 (expected, routine traffic), 403 is worth a security-audit trail.
+        log.warn("Forbidden: {}", e.getMessage());
+        return new ErrorEnvelope("FORBIDDEN", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(OrgManagerRequiredException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorEnvelope handleOrgManagerRequired(OrgManagerRequiredException e) {
         log.warn("Forbidden: {}", e.getMessage());
         return new ErrorEnvelope("FORBIDDEN", e.getMessage(), List.of(), requestId());
     }

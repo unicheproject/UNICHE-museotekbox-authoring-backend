@@ -1,6 +1,8 @@
 package com.museotek.box.web.error;
 
+import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.BoxNotFoundException;
+import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
@@ -96,6 +98,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/duplicate-serial-number")
         void duplicateSerialNumber() {
             throw new DuplicateSerialNumberException("A box with serial number SN-1 already exists");
+        }
+
+        @GetMapping("/org-manager-required")
+        void orgManagerRequired() {
+            throw new OrgManagerRequiredException("Only a manager of org 456 can do this");
+        }
+
+        @GetMapping("/project-not-in-box-org")
+        void projectNotInBoxOrg() {
+            throw new ProjectNotInBoxOrgException("Project 123 does not belong to org 456");
         }
 
         @GetMapping("/scan-object-type-in-use")
@@ -220,6 +232,22 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DUPLICATE_SERIAL_NUMBER"))
                 .andExpect(jsonPath("$.message").value("A box with serial number SN-1 already exists"));
+    }
+
+    @Test
+    void orgManagerRequiredException_mapsTo403WithForbiddenCode() throws Exception {
+        mockMvc.perform(get("/test/org-manager-required"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("Only a manager of org 456 can do this"));
+    }
+
+    @Test
+    void projectNotInBoxOrgException_mapsTo422WithProjectNotInBoxOrgCode() throws Exception {
+        mockMvc.perform(get("/test/project-not-in-box-org"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PROJECT_NOT_IN_BOX_ORG"))
+                .andExpect(jsonPath("$.message").value("Project 123 does not belong to org 456"));
     }
 
     @Test

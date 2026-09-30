@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Makes a project available on a Box. Idempotent: assigning an already-assigned project is a
+ * Makes a project available on a Box. Org managers only. Idempotent: assigning an already-assigned project is a
  * no-op. Only a plain assignment — publish version and the Box's current experience are
  * deliberately not touched here (see docs/proposal-experience-settings-and-publishing.md).
  */
@@ -40,7 +40,7 @@ public class AssignProjectToBoxUseCase {
 
     @Transactional
     public void execute(UUID orgId, Long boxId, UUID projectId) {
-        orgAccessGuard.requireAccess(orgId);
+        orgAccessGuard.requireManager(orgId);
 
         Box box = boxRepository.findByIdAndOrgId(boxId, orgId)
                 .orElseThrow(() -> new BoxNotFoundException("No box " + boxId + " for org " + orgId));
