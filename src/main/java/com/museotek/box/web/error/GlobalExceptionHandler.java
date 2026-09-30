@@ -2,6 +2,7 @@ package com.museotek.box.web.error;
 
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
+import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
@@ -50,6 +51,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorEnvelope handleDuplicateSerialNumber(DuplicateSerialNumberException e) {
         return new ErrorEnvelope("DUPLICATE_SERIAL_NUMBER", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(ProjectNotInBoxOrgException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ErrorEnvelope handleProjectNotInBoxOrg(ProjectNotInBoxOrgException e) {
+        return new ErrorEnvelope("PROJECT_NOT_IN_BOX_ORG", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(ScanObjectNotFoundException.class)
