@@ -153,9 +153,12 @@ validation, δεν θα διαρρεύσει στο response.
 | `CatalogueBadResponseException` | 502 | `UPSTREAM_INVALID_RESPONSE` |
 | `BoxNotFoundException` | 404 | `BOX_NOT_FOUND` |
 | `DuplicateSerialNumberException` | 409 | `DUPLICATE_SERIAL_NUMBER` |
+| `ProjectNotInBoxOrgException` (`domain/box/`) | 422 | `PROJECT_NOT_IN_BOX_ORG` |
+| `OrgManagerRequiredException` (`application/orgaccess/`, ο caller βλέπει το org αλλά δεν είναι manager) | 403 | `FORBIDDEN` |
 | `ScanObjectNotFoundException` | 404 | `SCAN_OBJECT_NOT_FOUND` |
 | `DuplicateRfidTagException` | 409 | `DUPLICATE_RFID_TAG` |
 | `ScanObjectTypeNotFoundException` | 404 | `SCAN_OBJECT_TYPE_NOT_FOUND` |
+| `ScanObjectTypeInUseException` | 409 | `SCAN_OBJECT_TYPE_IN_USE` |
 | `ExperienceValidationException` (`domain/experience/`) | 400 | `VALIDATION_ERROR` |
 | `MethodArgumentNotValidException` (bean validation) | 400 | `VALIDATION_ERROR` |
 | `MethodArgumentTypeMismatchException` (π.χ. μη-UUID path variable) | 400 | `INVALID_PARAMETER` |

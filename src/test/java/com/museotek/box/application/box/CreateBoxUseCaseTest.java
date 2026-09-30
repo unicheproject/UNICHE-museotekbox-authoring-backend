@@ -1,9 +1,9 @@
 package com.museotek.box.application.box;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
-import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -34,7 +34,7 @@ class CreateBoxUseCaseTest {
 
         Box result = useCase.execute(orgId, "Entrance Box", "SN-1");
 
-        verify(orgAccessGuard).requireAccess(orgId);
+        verify(orgAccessGuard).requireManager(orgId);
         ArgumentCaptor<Box> captor = ArgumentCaptor.forClass(Box.class);
         verify(boxRepository).save(captor.capture());
         assertThat(captor.getValue().getOrgId()).isEqualTo(orgId);
@@ -55,12 +55,12 @@ class CreateBoxUseCaseTest {
     }
 
     @Test
-    void orgAccessDenied_neverTouchesRepository() {
+    void notOrgManager_neverTouchesRepository() {
         UUID orgId = UUID.randomUUID();
-        when(orgAccessGuard.requireAccess(orgId)).thenThrow(new CatalogueForbiddenException("not a member"));
+        when(orgAccessGuard.requireManager(orgId)).thenThrow(new OrgManagerRequiredException("not a manager"));
 
         assertThatThrownBy(() -> useCase.execute(orgId, "Entrance Box", "SN-1"))
-                .isInstanceOf(CatalogueForbiddenException.class);
+                .isInstanceOf(OrgManagerRequiredException.class);
 
         verifyNoInteractions(boxRepository);
     }

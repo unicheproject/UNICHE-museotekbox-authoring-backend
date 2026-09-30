@@ -200,20 +200,46 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
   καμία κλήση Catalogue στη ροή του. Πριν από αυτή τη class, ένα org-scoped endpoint
   πάνω σε καθαρά τοπικά δεδομένα θα ήταν το πρώτο πραγματικά ανεξέλεγκτο local write path
   στο codebase — ένα raw `@PathVariable orgId` χωρίς κανέναν έλεγχο.
-- **Καλείται από:** `CreateBoxUseCase`, `ListBoxesForOrgQuery`, `GetBoxQuery` (πάντα ως
-  πρώτο βήμα). Οποιοδήποτε μελλοντικό org-scoped, καθαρά τοπικό feature πρέπει να το
-  καλεί το ίδιο, πριν αγγίξει το repository του.
+- **Δύο επίπεδα ελέγχου:**
+  - `requireAccess(orgId)`: ο caller "βλέπει" το org (manager, platform admin, ή author
+    με τουλάχιστον ένα project σε αυτό). Για reads.
+  - `requireManager(orgId)`: πρώτα `requireAccess` (ώστε κάποιος χωρίς καμία σχέση με το
+    org να παίρνει πάλι 404 και όχι 403 που θα επιβεβαίωνε ότι το org υπάρχει), μετά
+    απαιτεί platform admin ή manager του org, από το `GET /me/authorization` του
+    Catalogue (cached ανά χρήστη στον `CatalogueClient`). Αλλιώς
+    `OrgManagerRequiredException` → 403 `FORBIDDEN`. Για writes σε org-level πόρους.
+- **Καλείται από:**
+  - `requireAccess`: `ListBoxesForOrgQuery`, `GetBoxQuery`, `ListBoxProjectsQuery`, και τα
+    scan object / scan object type use cases.
+  - `requireManager`: `CreateBoxUseCase`, `UpdateBoxUseCase`, `DeleteBoxUseCase`,
+    `AssignProjectToBoxUseCase`, `UnassignProjectFromBoxUseCase`.
+  - Πάντα ως πρώτο βήμα. Οποιοδήποτε μελλοντικό org-scoped, καθαρά τοπικό feature πρέπει
+    να καλεί ένα από τα δύο, πριν αγγίξει το repository του.
 - **Input:** `orgId`. **Output:** `CatalogueOrganisationDto` (σήμερα ο caller δεν τον
   χρησιμοποιεί — το ενδιαφέρον είναι το side effect του exception αν δεν υπάρχει access).
 
-### `CreateBoxUseCase` / `ListBoxesForOrgQuery` / `GetBoxQuery` (application/box/)
+### Box use cases (application/box/)
 - **Ευθύνη:** το πρώτο πραγματικό feature πάνω στο `Box` entity — μέχρι τώρα υπήρχε μόνο
   το domain skeleton (`domain/box/Box.java`, `BoxStatus`) και ένα γυμνό
   `BoxRepository`, χωρίς κανένα endpoint.
-- **Endpoints:** `POST` / `GET` / `GET /{boxId}` κάτω από
-  `/api/v1/organisations/{orgId}/boxes` (`BoxController`).
-- **Κοινό μοτίβο:** και οι 3 καλούν `OrgAccessGuard.requireAccess(orgId)` πρώτα, μετά
-  αγγίζουν το `BoxRepository` — καμία απευθείας κλήση Catalogue, το `Box` δεν είναι
+- **Endpoints**, όλα κάτω από `/api/v1/organisations/{orgId}/boxes` (`BoxController`):
+
+  | Endpoint | Class | Ποιος |
+  |---|---|---|
+  | `GET` | `ListBoxesForOrgQuery` | όποιος βλέπει το org |
+  | `GET /{boxId}` | `GetBoxQuery` | όποιος βλέπει το org |
+  | `POST` | `CreateBoxUseCase` | manager / platform admin |
+  | `PATCH /{boxId}` | `UpdateBoxUseCase` | manager / platform admin |
+  | `DELETE /{boxId}` | `DeleteBoxUseCase` | manager / platform admin |
+  | `GET /{boxId}/projects` | `ListBoxProjectsQuery` | όποιος βλέπει το org (φιλτραρισμένο ανά ρόλο, βλ. παρακάτω) |
+  | `PUT /{boxId}/projects/{projectId}` | `AssignProjectToBoxUseCase` | manager / platform admin |
+  | `DELETE /{boxId}/projects/{projectId}` | `UnassignProjectFromBoxUseCase` | manager / platform admin |
+
+- **Γιατί manager-only τα writes:** το Box είναι φυσική συσκευή του org, όχι ενός project.
+  Το τι υπάρχει σε αυτό και το ίδιο το Box είναι απόφαση σε επίπεδο org, όπως και οι
+  προσκλήσεις. Ένας author μπορεί να δει τα boxes, αλλά όχι να τα αλλάξει.
+- **Κοινό μοτίβο:** όλα καλούν πρώτα `OrgAccessGuard` (`requireAccess` ή `requireManager`,
+  βλ. πίνακα), μετά αγγίζουν το `BoxRepository` — καμία απευθείας κλήση Catalogue, το `Box` δεν είναι
   Catalogue-owned resource, άρα δεν υπάρχει `*PassthroughQuery` naming (αυτό το suffix
   έχει νόημα μόνο μέσα σε package όπου κάποιες classes κάνουν companion-sync και άλλες
   όχι — εδώ καμία δεν κάνει).
@@ -226,10 +252,25 @@ Layout: `web/<feature>` (controller) → `application/<feature>` (use case/query
   `findById` + σύγκριση μετά — σκόπιμο: το `Box.id` είναι sequential `Long` (όχι UUID
   σαν το `Project`), άρα μια λάθος-org μαντεψιά πρέπει να πιάνεται στο ίδιο το query
   (404), όχι μέσω ενός post-fetch check που θα μπορούσε να διαρρεύσει πληροφορία.
-- **Εκτός scope αυτού του πρώτου slice (σκόπιμα, όχι ξεχασμένα):** Update/Delete στο
-  `Box`, και τα `currentProject`/`assignedProjects` M:N assignment endpoints — αυτά θα
-  χρειαστούν *δύο* guards μαζί (`OrgAccessGuard` για το ίδιο το Box + `ProjectAccessGuard`
-  για το project που ανατίθεται), ξεχωριστό design pass.
+- **Ανάθεση experience σε Box (`box_projects`):**
+  - `ListBoxProjectsQuery`: παίρνει τα ids των projects του Box
+    (`BoxRepository.findAssignedProjectIds`, μόνο ids ώστε να μη φορτωθεί το lazy
+    collection) και κρατάει μόνο όσα επιστρέφει και το
+    `CatalogueClient.listProjectsForOrg(orgId)`. Αυτό το call είναι ήδη φιλτραρισμένο ανά
+    caller από το Catalogue: ο manager/platform admin παίρνει όλα τα projects του org, ο
+    author μόνο όσα έχει πρόσκληση. Άρα το ίδιο endpoint δίνει όλα τα experiences του Box
+    στον manager και μόνο τα δικά του στον author, χωρίς καμία τοπική λογική ρόλων. Επίσης
+    πετάει projects που σβήστηκαν στο Catalogue μετά την ανάθεση.
+  - `AssignProjectToBoxUseCase`: `requireManager`, μετά `ProjectAccessGuard.requireAccess(projectId)`
+    (που κάνει και upsert το companion row, απαραίτητο για το FK του `box_projects`), μετά
+    έλεγχος ότι το project ανήκει στο org του Box, αλλιώς `ProjectNotInBoxOrgException` →
+    422 `PROJECT_NOT_IN_BOX_ORG`. Idempotent: αν υπάρχει ήδη, τίποτα δεν αλλάζει.
+  - `UnassignProjectFromBoxUseCase`: `requireManager` και μετά αφαίρεση. Σκόπιμα χωρίς
+    `ProjectAccessGuard`: ο έλεγχος manager στο org του Box αρκεί, και έτσι ένας manager
+    μπορεί να καθαρίσει και ανάθεση project που σβήστηκε στο Catalogue. Idempotent.
+  - **Σκόπιμα δεν αγγίζουν** το `Box.currentProject` ούτε publish version. Αυτά ανήκουν
+    στο publishing, που είναι ακόμα ανοιχτό (βλ.
+    `proposal-experience-settings-and-publishing.md`).
 
 ### `ScanObjectSupport` / list-get-delete / per-subtype create-update use cases (application/scanobject/)
 - **Ευθύνη:** το πρώτο πραγματικό feature πάνω στο `ScanObject` entity family (βάση +

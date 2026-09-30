@@ -20,7 +20,7 @@ public class DeleteBoxUseCase {
     }
 
     public void execute(UUID orgId, Long boxId) {
-        orgAccessGuard.requireAccess(orgId);
+        orgAccessGuard.requireManager(orgId);
 
         Box box = boxRepository.findByIdAndOrgId(boxId, orgId)
                 .orElseThrow(() -> new BoxNotFoundException("No box " + boxId + " for org " + orgId));

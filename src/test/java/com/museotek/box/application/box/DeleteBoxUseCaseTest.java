@@ -1,9 +1,9 @@
 package com.museotek.box.application.box;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxNotFoundException;
-import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +32,7 @@ class DeleteBoxUseCaseTest {
 
         useCase.execute(orgId, 1L);
 
-        verify(orgAccessGuard).requireAccess(orgId);
+        verify(orgAccessGuard).requireManager(orgId);
         verify(boxRepository).delete(box);
     }
 
@@ -45,11 +45,11 @@ class DeleteBoxUseCaseTest {
     }
 
     @Test
-    void orgAccessDenied_neverTouchesRepository() {
+    void notOrgManager_neverTouchesRepository() {
         UUID orgId = UUID.randomUUID();
-        when(orgAccessGuard.requireAccess(orgId)).thenThrow(new CatalogueForbiddenException("not a member"));
+        when(orgAccessGuard.requireManager(orgId)).thenThrow(new OrgManagerRequiredException("not a manager"));
 
-        assertThatThrownBy(() -> useCase.execute(orgId, 1L)).isInstanceOf(CatalogueForbiddenException.class);
+        assertThatThrownBy(() -> useCase.execute(orgId, 1L)).isInstanceOf(OrgManagerRequiredException.class);
 
         verifyNoInteractions(boxRepository);
     }

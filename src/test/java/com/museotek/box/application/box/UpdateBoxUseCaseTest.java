@@ -1,10 +1,10 @@
 package com.museotek.box.application.box;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
-import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import org.junit.jupiter.api.Test;
 
@@ -45,7 +45,7 @@ class UpdateBoxUseCaseTest {
 
         Box result = useCase.execute(orgId, 1L, "New name", "SN-2");
 
-        verify(orgAccessGuard).requireAccess(orgId);
+        verify(orgAccessGuard).requireManager(orgId);
         assertThat(result.getName()).isEqualTo("New name");
         assertThat(result.getSerialNumber()).isEqualTo("SN-2");
     }
@@ -87,12 +87,12 @@ class UpdateBoxUseCaseTest {
     }
 
     @Test
-    void orgAccessDenied_neverTouchesRepository() {
+    void notOrgManager_neverTouchesRepository() {
         UUID orgId = UUID.randomUUID();
-        when(orgAccessGuard.requireAccess(orgId)).thenThrow(new CatalogueForbiddenException("not a member"));
+        when(orgAccessGuard.requireManager(orgId)).thenThrow(new OrgManagerRequiredException("not a manager"));
 
         assertThatThrownBy(() -> useCase.execute(orgId, 1L, "New name", "SN-1"))
-                .isInstanceOf(CatalogueForbiddenException.class);
+                .isInstanceOf(OrgManagerRequiredException.class);
 
         verifyNoInteractions(boxRepository);
     }

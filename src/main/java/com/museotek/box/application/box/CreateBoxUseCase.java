@@ -20,7 +20,7 @@ public class CreateBoxUseCase {
     }
 
     public Box execute(UUID orgId, String name, String serialNumber) {
-        orgAccessGuard.requireAccess(orgId);
+        orgAccessGuard.requireManager(orgId);
 
         if (boxRepository.findBySerialNumber(serialNumber).isPresent()) {
             throw new DuplicateSerialNumberException("A box with serial number " + serialNumber + " already exists");

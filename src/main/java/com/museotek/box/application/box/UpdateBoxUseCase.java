@@ -21,7 +21,7 @@ public class UpdateBoxUseCase {
     }
 
     public Box execute(UUID orgId, Long boxId, String name, String serialNumber) {
-        orgAccessGuard.requireAccess(orgId);
+        orgAccessGuard.requireManager(orgId);
 
         Box box = boxRepository.findByIdAndOrgId(boxId, orgId)
                 .orElseThrow(() -> new BoxNotFoundException("No box " + boxId + " for org " + orgId));
