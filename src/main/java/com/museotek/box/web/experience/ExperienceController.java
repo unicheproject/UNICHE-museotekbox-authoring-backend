@@ -58,9 +58,10 @@ public class ExperienceController {
 
     @Operation(
             summary = "Load this project's experience content",
-            description = "Returns the scenes, blocks and rules of the project, plus the document version (also sent "
-                    + "as the ETag header) and the next free scene/block/rule keys. One per project: there is no "
-                    + "experience id. A new project returns an empty experience.")
+            description = "Returns where it plays (output), the flow (the curator's wizard source), the variables, and the scenes, blocks and "
+                    + "rules of the project, plus the document version (also sent as the ETag header) and the next "
+                    + "free scene/block/rule keys. One per project: there is no experience id. A new project returns "
+                    + "an empty experience with output and flow = null.")
     @ApiResponse(responseCode = "200", description = "The experience content, with its version in the ETag header")
     @ApiResponse(responseCode = "403", description = "The caller can't access this project")
     @ApiResponse(responseCode = "404", description = "No accessible project with this id (or it was deleted)")
@@ -73,11 +74,13 @@ public class ExperienceController {
 
     @Operation(
             summary = "Save this project's experience content",
-            description = "Replaces the whole experience (all scenes, blocks and rules) with the document sent. Send "
+            description = "Replaces the whole experience (flow, variables, and all scenes, blocks and rules) with the "
+                    + "document sent. The flow and the graph are always saved together. output (DISPLAY or BOX) is "
+                    + "set by the first save and can't change afterwards. Send "
                     + "If-Match with the version from the last GET or save. If someone else saved in between, the "
                     + "response is 409 with the current document, so the client can reload.")
     @ApiResponse(responseCode = "200", description = "Saved. Returns the stored document and its new version in the ETag header")
-    @ApiResponse(responseCode = "400", description = "Invalid document (keys, references, start scene) or malformed If-Match")
+    @ApiResponse(responseCode = "400", description = "Invalid document (keys, references, start scene, flow schema version, variables, changed output) or malformed If-Match")
     @ApiResponse(responseCode = "403", description = "The caller can't access this project")
     @ApiResponse(responseCode = "404", description = "No accessible project with this id (or it was deleted)")
     @ApiResponse(responseCode = "409", description = "Stale If-Match: someone else saved first. The body is the current document")

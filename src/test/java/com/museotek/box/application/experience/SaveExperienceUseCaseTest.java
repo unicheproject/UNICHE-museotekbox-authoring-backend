@@ -1,13 +1,19 @@
 package com.museotek.box.application.experience;
 
 import com.museotek.box.application.experience.ExperienceDocument.BlockDocument;
+import com.museotek.box.application.experience.ExperienceDocument.FlowDocument;
 import com.museotek.box.application.experience.ExperienceDocument.RuleDocument;
 import com.museotek.box.application.experience.ExperienceDocument.SceneDocument;
+import com.museotek.box.application.experience.ExperienceDocument.VariableDocument;
 import com.museotek.box.application.projectaccess.ProjectAccessGuard;
 import com.museotek.box.application.scanobject.ScanObjectSupport;
 import com.museotek.box.domain.block.Block;
 import com.museotek.box.domain.block.BlockType;
+import com.museotek.box.domain.experience.ExperienceFlow;
+import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.experience.ExperienceValidationException;
+import com.museotek.box.domain.experience.ExperienceVariable;
+import com.museotek.box.domain.experience.VariableKind;
 import com.museotek.box.domain.experience.StaleExperienceVersionException;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.rule.Rule;
@@ -19,6 +25,8 @@ import com.museotek.box.domain.scene.Scene;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.repository.BlockRepository;
+import com.museotek.box.infrastructure.repository.ExperienceFlowRepository;
+import com.museotek.box.infrastructure.repository.ExperienceVariableRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.infrastructure.repository.RuleRepository;
 import com.museotek.box.infrastructure.repository.SceneRepository;
@@ -48,6 +56,8 @@ class SaveExperienceUseCaseTest {
     private final SceneRepository sceneRepository = mock(SceneRepository.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final RuleRepository ruleRepository = mock(RuleRepository.class);
+    private final ExperienceFlowRepository experienceFlowRepository = mock(ExperienceFlowRepository.class);
+    private final ExperienceVariableRepository experienceVariableRepository = mock(ExperienceVariableRepository.class);
     private final ScanObjectRepository scanObjectRepository = mock(ScanObjectRepository.class);
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final ScanObjectSupport scanObjectSupport = new ScanObjectSupport(scanObjectRepository, scanObjectTypeRepository);
@@ -55,7 +65,9 @@ class SaveExperienceUseCaseTest {
 
     private final SaveExperienceUseCase useCase = new SaveExperienceUseCase(
             projectAccessGuard, projectRepository, sceneRepository, blockRepository, ruleRepository,
-            scanObjectSupport, validator);
+            experienceFlowRepository, experienceVariableRepository, scanObjectSupport, validator);
+
+    private static final FlowDocument FLOW = new FlowDocument(1, "{\"details\":{},\"islands\":[]}");
 
     private final UUID projectId = UUID.randomUUID();
     private final UUID orgId = UUID.randomUUID();
@@ -73,7 +85,7 @@ class SaveExperienceUseCaseTest {
         RuleDocument rule = new RuleDocument("1", "TAG_SCANNED", "SHOW_BLOCK", 0, null, null, null, "1");
         SceneDocument scene = new SceneDocument("1", "Scene One", 0, true, null, List.of(block), List.of(rule));
 
-        ExperienceView view = useCase.execute(projectId, 0, new ExperienceDocument(List.of(scene)));
+        ExperienceView view = useCase.execute(projectId, 0, document(List.of(scene)));
 
         assertThat(view.version()).isEqualTo(1);
         assertThat(view.nextSceneSeq()).isEqualTo(2);
@@ -98,7 +110,7 @@ class SaveExperienceUseCaseTest {
         BlockDocument block = new BlockDocument("1", "IMAGE", 0, "{\"a\":1}");
         SceneDocument scene = new SceneDocument("1", "New Name", 0, true, null, List.of(block), List.of());
 
-        ExperienceView view = useCase.execute(projectId, 5, new ExperienceDocument(List.of(scene)));
+        ExperienceView view = useCase.execute(projectId, 5, document(List.of(scene)));
 
         assertThat(view.scenes()).hasSize(1);
         assertThat(view.scenes().get(0).scene().getId()).isEqualTo(10L);
@@ -123,7 +135,7 @@ class SaveExperienceUseCaseTest {
         BlockDocument block = new BlockDocument("1", "TEXT", 0, "{}");
         SceneDocument scene = new SceneDocument("1", "Kept", 0, true, null, List.of(block), List.of());
 
-        useCase.execute(projectId, 0, new ExperienceDocument(List.of(scene)));
+        useCase.execute(projectId, 0, document(List.of(scene)));
 
         ArgumentCaptor<List<Scene>> sceneDeleteCaptor = ArgumentCaptor.forClass(List.class);
         verify(sceneRepository).deleteAll(sceneDeleteCaptor.capture());
@@ -140,7 +152,7 @@ class SaveExperienceUseCaseTest {
         when(projectAccessGuard.requireAccess(projectId)).thenReturn(catalogueProject());
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
 
-        ExperienceDocument document = new ExperienceDocument(List.of());
+        ExperienceDocument document = document(List.of());
 
         assertThatThrownBy(() -> useCase.execute(projectId, 3, document))
                 .isInstanceOf(StaleExperienceVersionException.class)
@@ -161,7 +173,7 @@ class SaveExperienceUseCaseTest {
         SceneDocument first = new SceneDocument("1", "A", 0, true, null, List.of(), List.of());
         SceneDocument second = new SceneDocument("2", "B", 1, true, null, List.of(), List.of());
 
-        assertThatThrownBy(() -> useCase.execute(projectId, 0, new ExperienceDocument(List.of(first, second))))
+        assertThatThrownBy(() -> useCase.execute(projectId, 0, document(List.of(first, second))))
                 .isInstanceOf(ExperienceValidationException.class)
                 .satisfies(e -> assertThat(((ExperienceValidationException) e).getErrors())
                         .anyMatch(msg -> msg.contains("exactly one scene must have is_start")));
@@ -177,7 +189,7 @@ class SaveExperienceUseCaseTest {
         BlockDocument badBlock = new BlockDocument("1", "NOT_A_TYPE", 0, "{}");
         SceneDocument scene = new SceneDocument("1", "A", 0, true, null, List.of(badBlock), List.of());
 
-        assertThatThrownBy(() -> useCase.execute(projectId, 0, new ExperienceDocument(List.of(scene))))
+        assertThatThrownBy(() -> useCase.execute(projectId, 0, document(List.of(scene))))
                 .isInstanceOf(ExperienceValidationException.class)
                 .satisfies(e -> assertThat(((ExperienceValidationException) e).getErrors())
                         .anyMatch(msg -> msg.contains("NOT_A_TYPE") && msg.contains("not a valid block type")));
@@ -193,7 +205,7 @@ class SaveExperienceUseCaseTest {
 
         SceneDocument scene = new SceneDocument("1", "A", 0, true, 99L, List.of(), List.of());
 
-        assertThatThrownBy(() -> useCase.execute(projectId, 0, new ExperienceDocument(List.of(scene))))
+        assertThatThrownBy(() -> useCase.execute(projectId, 0, document(List.of(scene))))
                 .isInstanceOf(ScanObjectTypeNotFoundException.class);
 
         verify(sceneRepository, org.mockito.Mockito.never()).save(any());
@@ -203,12 +215,114 @@ class SaveExperienceUseCaseTest {
     void projectAccessDenied_neverTouchesAnyRepository() {
         when(projectAccessGuard.requireAccess(projectId)).thenThrow(new CatalogueForbiddenException("not a member"));
 
-        ExperienceDocument document = new ExperienceDocument(List.of());
+        ExperienceDocument document = document(List.of());
 
         assertThatThrownBy(() -> useCase.execute(projectId, 0, document))
                 .isInstanceOf(CatalogueForbiddenException.class);
 
         verifyNoInteractions(projectRepository, sceneRepository, blockRepository, ruleRepository);
+    }
+
+
+    @Test
+    void success_savesFlowAndVariablesWithTheGraph() {
+        Project project = project(0, 1, 1, 1);
+        stubAccessAndEmptyProject(project);
+        SceneDocument scene = new SceneDocument("1", "Start", 0, true, null, List.of(), List.of());
+        ExperienceDocument document = new ExperienceDocument("DISPLAY", FLOW,
+                List.of(new VariableDocument("wrong", "NUMBER", "0"), new VariableDocument("correct", "NUMBER", "0")),
+                List.of(scene));
+
+        ExperienceView view = useCase.execute(projectId, 0, document);
+
+        assertThat(view.flow().getProjectId()).isEqualTo(projectId);
+        assertThat(view.flow().getSchemaVersion()).isEqualTo(1);
+        assertThat(view.flow().getFlow()).isEqualTo("{\"details\":{},\"islands\":[]}");
+        assertThat(view.variables()).extracting(ExperienceVariable::getVariableKey).containsExactly("correct", "wrong");
+        assertThat(view.variables()).allSatisfy(v -> assertThat(v.getProject()).isSameAs(project));
+    }
+
+    @Test
+    void success_updatesExistingFlowAndVariablesInPlace_deletesMissingVariables() {
+        Project project = project(2, 1, 1, 1);
+        stubAccessAndEmptyProject(project);
+        ExperienceFlow existingFlow = new ExperienceFlow();
+        existingFlow.setProjectId(projectId);
+        existingFlow.setSchemaVersion(1);
+        existingFlow.setFlow("{\"old\":true}");
+        existingFlow.setOutput(ExperienceOutput.DISPLAY);
+        when(experienceFlowRepository.findById(projectId)).thenReturn(Optional.of(existingFlow));
+        ExperienceVariable kept = variable(1L, project, "correct", VariableKind.NUMBER, "0");
+        ExperienceVariable dropped = variable(2L, project, "found", VariableKind.NUMBER, "0");
+        when(experienceVariableRepository.findByProjectIdOrderByVariableKeyAsc(projectId)).thenReturn(List.of(kept, dropped));
+        SceneDocument scene = new SceneDocument("1", "Start", 0, true, null, List.of(), List.of());
+        ExperienceDocument document = new ExperienceDocument("DISPLAY", FLOW,
+                List.of(new VariableDocument("correct", "NUMBER", "5")), List.of(scene));
+
+        ExperienceView view = useCase.execute(projectId, 2, document);
+
+        assertThat(view.flow()).isSameAs(existingFlow);
+        assertThat(existingFlow.getFlow()).isEqualTo("{\"details\":{},\"islands\":[]}");
+        assertThat(view.variables()).containsExactly(kept);
+        assertThat(kept.getInitialValue()).isEqualTo("5");
+        ArgumentCaptor<List<ExperienceVariable>> deleted = ArgumentCaptor.forClass(List.class);
+        verify(experienceVariableRepository).deleteAll(deleted.capture());
+        assertThat(deleted.getValue()).containsExactly(dropped);
+    }
+
+    @Test
+    void missingFlow_throwsWithoutSavingAnything() {
+        stubAccessAndEmptyProject(project(0, 1, 1, 1));
+        SceneDocument scene = new SceneDocument("1", "Start", 0, true, null, List.of(), List.of());
+
+        assertThatThrownBy(() -> useCase.execute(projectId, 0, new ExperienceDocument("DISPLAY", null, List.of(), List.of(scene))))
+                .isInstanceOf(ExperienceValidationException.class);
+
+        assertNoWritesHappened();
+    }
+
+
+    @Test
+    void firstSave_storesOutput() {
+        stubAccessAndEmptyProject(project(0, 1, 1, 1));
+        SceneDocument scene = new SceneDocument("1", "Start", 0, true, null, List.of(), List.of());
+
+        ExperienceView view = useCase.execute(projectId, 0, new ExperienceDocument("BOX", FLOW, List.of(), List.of(scene)));
+
+        assertThat(view.flow().getOutput()).isEqualTo(ExperienceOutput.BOX);
+    }
+
+    @Test
+    void changingOutputAfterCreation_throwsWithoutSavingAnything() {
+        stubAccessAndEmptyProject(project(1, 2, 1, 1));
+        ExperienceFlow existingFlow = new ExperienceFlow();
+        existingFlow.setProjectId(projectId);
+        existingFlow.setSchemaVersion(1);
+        existingFlow.setFlow("{}");
+        existingFlow.setOutput(ExperienceOutput.DISPLAY);
+        when(experienceFlowRepository.findById(projectId)).thenReturn(Optional.of(existingFlow));
+        SceneDocument scene = new SceneDocument("2", "Start", 0, true, null, List.of(), List.of());
+
+        assertThatThrownBy(() -> useCase.execute(projectId, 1, new ExperienceDocument("BOX", FLOW, List.of(), List.of(scene))))
+                .isInstanceOf(ExperienceValidationException.class)
+                .hasMessageContaining("output can't be changed");
+
+        assertNoWritesHappened();
+        assertThat(existingFlow.getOutput()).isEqualTo(ExperienceOutput.DISPLAY);
+    }
+
+    private ExperienceDocument document(List<SceneDocument> scenes) {
+        return new ExperienceDocument("DISPLAY", FLOW, List.of(), scenes);
+    }
+
+    private ExperienceVariable variable(Long id, Project project, String key, VariableKind kind, String initial) {
+        ExperienceVariable variable = new ExperienceVariable();
+        variable.setId(id);
+        variable.setProject(project);
+        variable.setVariableKey(key);
+        variable.setKind(kind);
+        variable.setInitialValue(initial);
+        return variable;
     }
 
     // reading existing rows to build the validation context is legitimate (and always happens
@@ -221,6 +335,9 @@ class SaveExperienceUseCaseTest {
         verify(ruleRepository, org.mockito.Mockito.never()).save(any());
         verify(ruleRepository, org.mockito.Mockito.never()).deleteAll(any());
         verify(projectRepository, org.mockito.Mockito.never()).save(any());
+        verify(experienceFlowRepository, org.mockito.Mockito.never()).save(any());
+        verify(experienceVariableRepository, org.mockito.Mockito.never()).save(any());
+        verify(experienceVariableRepository, org.mockito.Mockito.never()).deleteAll(any());
     }
 
     private void stubAccessAndEmptyProject(Project project) {
@@ -234,6 +351,8 @@ class SaveExperienceUseCaseTest {
         when(blockRepository.findBySceneIdInOrderByPositionAsc(anyCollection())).thenReturn(blocks);
         when(ruleRepository.findBySceneIdInOrderByPositionAsc(anyCollection())).thenReturn(rules);
         when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(experienceFlowRepository.save(any(ExperienceFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(experienceVariableRepository.save(any(ExperienceVariable.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(sceneRepository.save(any(Scene.class))).thenAnswer(invocation -> {
             Scene scene = invocation.getArgument(0);
             if (scene.getId() == null) {

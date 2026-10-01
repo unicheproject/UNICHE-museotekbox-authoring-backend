@@ -34,3 +34,9 @@ ALTER TABLE rules
     ADD COLUMN effects          JSONB NOT NULL DEFAULT '[]',
     ADD COLUMN destination_type VARCHAR(15);
 --rollback ALTER TABLE rules DROP COLUMN trigger_type, DROP COLUMN trigger_seconds, DROP COLUMN condition, DROP COLUMN effects, DROP COLUMN destination_type;
+
+--changeset museotekbox:0018-add-experience-output
+--comment Where the experience plays: DISPLAY (Box and a screen) or BOX (Box only); set on the first save and never changed afterwards, since every media choice depends on it
+ALTER TABLE experience_flows
+    ADD COLUMN output VARCHAR(15) NOT NULL DEFAULT 'DISPLAY';
+--rollback ALTER TABLE experience_flows DROP COLUMN output;

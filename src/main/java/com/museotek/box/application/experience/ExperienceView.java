@@ -1,6 +1,8 @@
 package com.museotek.box.application.experience;
 
 import com.museotek.box.domain.block.Block;
+import com.museotek.box.domain.experience.ExperienceFlow;
+import com.museotek.box.domain.experience.ExperienceVariable;
 import com.museotek.box.domain.rule.Rule;
 import com.museotek.box.domain.scene.Scene;
 
@@ -19,6 +21,8 @@ public record ExperienceView(
         int nextSceneSeq,
         int nextBlockSeq,
         int nextRuleSeq,
+        ExperienceFlow flow,
+        List<ExperienceVariable> variables,
         List<SceneView> scenes
 ) {
 

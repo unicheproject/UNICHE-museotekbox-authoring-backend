@@ -3,6 +3,8 @@ package com.museotek.box.application.experience;
 import com.museotek.box.application.projectaccess.ProjectAccessGuard;
 import com.museotek.box.domain.block.Block;
 import com.museotek.box.domain.block.BlockType;
+import com.museotek.box.domain.experience.ExperienceFlow;
+import com.museotek.box.domain.experience.ExperienceVariable;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.rule.Rule;
 import com.museotek.box.domain.rule.RuleAction;
@@ -10,6 +12,8 @@ import com.museotek.box.domain.rule.RuleEventType;
 import com.museotek.box.domain.scene.Scene;
 import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
 import com.museotek.box.infrastructure.repository.BlockRepository;
+import com.museotek.box.infrastructure.repository.ExperienceFlowRepository;
+import com.museotek.box.infrastructure.repository.ExperienceVariableRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.infrastructure.repository.RuleRepository;
 import com.museotek.box.infrastructure.repository.SceneRepository;
@@ -33,8 +37,11 @@ class GetExperienceQueryTest {
     private final SceneRepository sceneRepository = mock(SceneRepository.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final RuleRepository ruleRepository = mock(RuleRepository.class);
+    private final ExperienceFlowRepository experienceFlowRepository = mock(ExperienceFlowRepository.class);
+    private final ExperienceVariableRepository experienceVariableRepository = mock(ExperienceVariableRepository.class);
     private final GetExperienceQuery query = new GetExperienceQuery(
-            projectAccessGuard, projectRepository, sceneRepository, blockRepository, ruleRepository);
+            projectAccessGuard, projectRepository, sceneRepository, blockRepository, ruleRepository,
+            experienceFlowRepository, experienceVariableRepository);
 
     private final UUID projectId = UUID.randomUUID();
 
@@ -87,7 +94,40 @@ class GetExperienceQueryTest {
 
         assertThatThrownBy(() -> query.execute(projectId)).isInstanceOf(CatalogueNotFoundException.class);
 
-        verifyNoInteractions(projectRepository, sceneRepository, blockRepository, ruleRepository);
+        verifyNoInteractions(projectRepository, sceneRepository, blockRepository, ruleRepository,
+                experienceFlowRepository, experienceVariableRepository);
+    }
+
+
+    @Test
+    void returnsFlowAndVariables() {
+        stubProject(1, 2, 1, 1);
+        ExperienceFlow flow = new ExperienceFlow();
+        flow.setProjectId(projectId);
+        flow.setSchemaVersion(1);
+        flow.setFlow("{}");
+        ExperienceVariable correct = new ExperienceVariable();
+        correct.setVariableKey("correct");
+        when(experienceFlowRepository.findById(projectId)).thenReturn(Optional.of(flow));
+        when(experienceVariableRepository.findByProjectIdOrderByVariableKeyAsc(projectId)).thenReturn(List.of(correct));
+        when(sceneRepository.findByProjectIdOrderByPositionAsc(projectId)).thenReturn(List.of());
+
+        ExperienceView view = query.execute(projectId);
+
+        assertThat(view.flow()).isSameAs(flow);
+        assertThat(view.variables()).containsExactly(correct);
+    }
+
+    @Test
+    void newProject_hasNoFlowAndNoVariables() {
+        stubProject(0, 1, 1, 1);
+        when(experienceFlowRepository.findById(projectId)).thenReturn(Optional.empty());
+        when(sceneRepository.findByProjectIdOrderByPositionAsc(projectId)).thenReturn(List.of());
+
+        ExperienceView view = query.execute(projectId);
+
+        assertThat(view.flow()).isNull();
+        assertThat(view.variables()).isEmpty();
     }
 
     private void stubProject(int version, int nextSceneSeq, int nextBlockSeq, int nextRuleSeq) {

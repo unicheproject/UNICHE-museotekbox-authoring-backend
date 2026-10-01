@@ -7,7 +7,19 @@ import java.util.List;
  * counterpart to {@link ExperienceView}, entity-independent since new rows have no id yet
  * and everything is addressed by its stable string key instead.
  */
-public record ExperienceDocument(List<SceneDocument> scenes) {
+public record ExperienceDocument(
+        String output,
+        FlowDocument flow,
+        List<VariableDocument> variables,
+        List<SceneDocument> scenes
+) {
+
+    // content is the frontend's own JSON object, kept as a string: never interpreted here.
+    public record FlowDocument(Integer schemaVersion, String content) {
+    }
+
+    public record VariableDocument(String key, String kind, String initial) {
+    }
 
     public record SceneDocument(
             String sceneKey,

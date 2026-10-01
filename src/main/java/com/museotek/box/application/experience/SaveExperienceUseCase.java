@@ -3,10 +3,15 @@ package com.museotek.box.application.experience;
 import com.museotek.box.application.experience.ExperienceDocument.BlockDocument;
 import com.museotek.box.application.experience.ExperienceDocument.RuleDocument;
 import com.museotek.box.application.experience.ExperienceDocument.SceneDocument;
+import com.museotek.box.application.experience.ExperienceDocument.VariableDocument;
 import com.museotek.box.application.projectaccess.ProjectAccessGuard;
 import com.museotek.box.application.scanobject.ScanObjectSupport;
 import com.museotek.box.domain.block.Block;
 import com.museotek.box.domain.block.BlockType;
+import com.museotek.box.domain.experience.ExperienceFlow;
+import com.museotek.box.domain.experience.ExperienceOutput;
+import com.museotek.box.domain.experience.ExperienceVariable;
+import com.museotek.box.domain.experience.VariableKind;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.experience.StaleExperienceVersionException;
 import com.museotek.box.domain.project.Project;
@@ -17,6 +22,8 @@ import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scene.Scene;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.repository.BlockRepository;
+import com.museotek.box.infrastructure.repository.ExperienceFlowRepository;
+import com.museotek.box.infrastructure.repository.ExperienceVariableRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.infrastructure.repository.RuleRepository;
 import com.museotek.box.infrastructure.repository.SceneRepository;
@@ -48,6 +55,8 @@ public class SaveExperienceUseCase {
     private final SceneRepository sceneRepository;
     private final BlockRepository blockRepository;
     private final RuleRepository ruleRepository;
+    private final ExperienceFlowRepository experienceFlowRepository;
+    private final ExperienceVariableRepository experienceVariableRepository;
     private final ScanObjectSupport scanObjectSupport;
     private final ExperienceDocumentValidator validator;
 
@@ -57,6 +66,8 @@ public class SaveExperienceUseCase {
             SceneRepository sceneRepository,
             BlockRepository blockRepository,
             RuleRepository ruleRepository,
+            ExperienceFlowRepository experienceFlowRepository,
+            ExperienceVariableRepository experienceVariableRepository,
             ScanObjectSupport scanObjectSupport,
             ExperienceDocumentValidator validator
     ) {
@@ -65,6 +76,8 @@ public class SaveExperienceUseCase {
         this.sceneRepository = sceneRepository;
         this.blockRepository = blockRepository;
         this.ruleRepository = ruleRepository;
+        this.experienceFlowRepository = experienceFlowRepository;
+        this.experienceVariableRepository = experienceVariableRepository;
         this.scanObjectSupport = scanObjectSupport;
         this.validator = validator;
     }
@@ -83,6 +96,8 @@ public class SaveExperienceUseCase {
         List<Long> existingSceneIds = existingScenes.stream().map(Scene::getId).toList();
         List<Block> existingBlocks = blockRepository.findBySceneIdInOrderByPositionAsc(existingSceneIds);
         List<Rule> existingRules = ruleRepository.findBySceneIdInOrderByPositionAsc(existingSceneIds);
+        ExperienceFlow existingFlow = experienceFlowRepository.findById(projectId).orElse(null);
+        String existingOutput = existingFlow == null ? null : existingFlow.getOutput().name();
 
         ExperienceWriteContext context = new ExperienceWriteContext(
                 existingScenes.stream().map(Scene::getSceneKey).collect(Collectors.toSet()),
@@ -90,7 +105,8 @@ public class SaveExperienceUseCase {
                 existingRules.stream().map(Rule::getRuleKey).collect(Collectors.toSet()),
                 project.getNextSceneSeq(),
                 project.getNextBlockSeq(),
-                project.getNextRuleSeq());
+                project.getNextRuleSeq(),
+                existingOutput);
 
         List<String> errors = new ArrayList<>(validator.validate(document, context).errors());
         errors.addAll(validateEnumValues(document));
@@ -126,11 +142,14 @@ public class SaveExperienceUseCase {
             }
         }
 
+        ExperienceFlow savedFlow = saveFlow(projectId, existingFlow, document);
+        List<ExperienceVariable> savedVariables = saveVariables(project, document);
+
         bumpProjectCounters(project, document);
         project.setDocVersion(project.getDocVersion() + 1);
         project = projectRepository.save(project);
 
-        return buildView(project, savedScenes, savedBlocks, savedRules);
+        return buildView(project, savedFlow, savedVariables, savedScenes, savedBlocks, savedRules);
     }
 
     // A key already reported by validateKeys is skipped here - it's already going to fail the
@@ -248,6 +267,51 @@ public class SaveExperienceUseCase {
         return ruleRepository.save(rule);
     }
 
+    // output is only ever set on the first save; the validator already refused any change to it.
+    private ExperienceFlow saveFlow(UUID projectId, ExperienceFlow existingFlow, ExperienceDocument document) {
+        ExperienceFlow flow = existingFlow;
+        if (flow == null) {
+            flow = new ExperienceFlow();
+            flow.setProjectId(projectId);
+            flow.setOutput(ExperienceOutput.valueOf(document.output()));
+        }
+        flow.setSchemaVersion(document.flow().schemaVersion());
+        flow.setFlow(document.flow().content());
+        return experienceFlowRepository.save(flow);
+    }
+
+    // Matched by key, like scenes/blocks/rules: an existing key is updated in place, never
+    // deleted and re-inserted, so the (project_id, variable_key) unique constraint can't trip
+    // over Hibernate flushing inserts before deletes.
+    private List<ExperienceVariable> saveVariables(Project project, ExperienceDocument document) {
+        List<ExperienceVariable> existing = experienceVariableRepository.findByProjectIdOrderByVariableKeyAsc(project.getId());
+        Map<String, ExperienceVariable> existingByKey = existing.stream()
+                .collect(Collectors.toMap(ExperienceVariable::getVariableKey, variable -> variable));
+        Set<String> documentKeys = document.variables().stream()
+                .map(VariableDocument::key)
+                .collect(Collectors.toSet());
+
+        List<ExperienceVariable> toDelete = existing.stream()
+                .filter(variable -> !documentKeys.contains(variable.getVariableKey()))
+                .toList();
+        experienceVariableRepository.deleteAll(toDelete);
+
+        List<ExperienceVariable> saved = new ArrayList<>();
+        for (VariableDocument variableDoc : document.variables()) {
+            ExperienceVariable variable = existingByKey.get(variableDoc.key());
+            if (variable == null) {
+                variable = new ExperienceVariable();
+                variable.setProject(project);
+                variable.setVariableKey(variableDoc.key());
+            }
+            variable.setKind(VariableKind.valueOf(variableDoc.kind()));
+            variable.setInitialValue(variableDoc.initial());
+            saved.add(experienceVariableRepository.save(variable));
+        }
+        saved.sort(Comparator.comparing(ExperienceVariable::getVariableKey));
+        return saved;
+    }
+
     // Bumped past the highest key actually used by this write, per project.Java's own contract -
     // never bumped backwards, since an update-only write (no new keys) must leave it untouched.
     private void bumpProjectCounters(Project project, ExperienceDocument document) {
@@ -268,7 +332,10 @@ public class SaveExperienceUseCase {
         project.setNextRuleSeq(Math.max(project.getNextRuleSeq(), maxRuleKey + 1));
     }
 
-    private ExperienceView buildView(Project project, List<Scene> scenes, List<Block> blocks, List<Rule> rules) {
+    private ExperienceView buildView(
+            Project project, ExperienceFlow flow, List<ExperienceVariable> variables,
+            List<Scene> scenes, List<Block> blocks, List<Rule> rules
+    ) {
         Map<Long, List<Block>> blocksByScene = blocks.stream()
                 .collect(Collectors.groupingBy(block -> block.getScene().getId()));
         Map<Long, List<Rule>> rulesByScene = rules.stream()
@@ -285,7 +352,7 @@ public class SaveExperienceUseCase {
         return new ExperienceView(
                 project.getId(), project.getDocVersion(),
                 project.getNextSceneSeq(), project.getNextBlockSeq(), project.getNextRuleSeq(),
-                sceneViews);
+                flow, variables, sceneViews);
     }
 
     private <T> List<T> sortByPosition(List<T> items, java.util.function.Function<T, Integer> position) {
