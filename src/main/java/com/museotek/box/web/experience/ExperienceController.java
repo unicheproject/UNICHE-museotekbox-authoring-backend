@@ -80,7 +80,7 @@ public class ExperienceController {
                     + "If-Match with the version from the last GET or save. If someone else saved in between, the "
                     + "response is 409 with the current document, so the client can reload.")
     @ApiResponse(responseCode = "200", description = "Saved. Returns the stored document and its new version in the ETag header")
-    @ApiResponse(responseCode = "400", description = "Invalid document (keys, references, start scene, flow schema version, variables, changed output) or malformed If-Match")
+    @ApiResponse(responseCode = "400", description = "Invalid document (keys, references, start scene, flow schema version, variables, changed output, rule trigger/condition/effects/destination) or malformed If-Match")
     @ApiResponse(responseCode = "403", description = "The caller can't access this project")
     @ApiResponse(responseCode = "404", description = "No accessible project with this id (or it was deleted)")
     @ApiResponse(responseCode = "409", description = "Stale If-Match: someone else saved first. The body is the current document")

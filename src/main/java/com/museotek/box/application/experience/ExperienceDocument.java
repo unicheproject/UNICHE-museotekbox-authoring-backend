@@ -1,5 +1,8 @@
 package com.museotek.box.application.experience;
 
+import com.museotek.box.domain.rule.RuleCondition;
+import com.museotek.box.domain.rule.RuleEffect;
+
 import java.util.List;
 
 /**
@@ -35,15 +38,22 @@ public record ExperienceDocument(
     public record BlockDocument(String blockKey, String type, Integer position, String content) {
     }
 
+    // "When ... if ... do ... then": the flow/rule-model proposal's rule model v2.
     public record RuleDocument(
             String ruleKey,
-            String eventType,
-            String action,
             Integer position,
-            Long scanObjectTypeId,
-            String triggerBlockKey,
-            String targetSceneKey,
-            String targetBlockKey
+            TriggerDocument trigger,
+            RuleCondition condition,
+            List<RuleEffect> effects,
+            DestinationDocument destination
     ) {
+    }
+
+    // scanObjectTypeId only for SCAN, seconds only for TIMER_ELAPSED.
+    public record TriggerDocument(String type, Long scanObjectTypeId, Integer seconds) {
+    }
+
+    // targetSceneKey only for GO_TO.
+    public record DestinationDocument(String type, String targetSceneKey) {
     }
 }

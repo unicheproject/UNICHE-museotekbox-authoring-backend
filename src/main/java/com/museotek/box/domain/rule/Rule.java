@@ -16,6 +16,11 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "rules")
@@ -35,28 +40,37 @@ public class Rule {
     @Column(nullable = false)
     private String ruleKey;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private RuleEventType eventType;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private RuleAction action;
-
     @Column(nullable = false)
     private Integer position;
+
+    // When: the trigger, plus what some triggers need (the card for SCAN, the seconds for TIMER_ELAPSED).
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RuleTrigger triggerType;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "scan_object_type_id")
     private ScanObjectType scanObjectType;
 
-    // Validated against the document by application code, not DB foreign keys — see the proposal doc.
     @Column
-    private String triggerBlockKey;
+    private Integer triggerSeconds;
+
+    // If: null means always.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column
+    private RuleCondition condition;
+
+    // Do: in order, possibly none.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false)
+    private List<RuleEffect> effects = new ArrayList<>();
+
+    // Then. targetSceneKey is set only for GO_TO; validated against the document by application
+    // code, not a DB foreign key (see the proposal doc).
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RuleDestination destinationType;
 
     @Column
     private String targetSceneKey;
-
-    @Column
-    private String targetBlockKey;
 }

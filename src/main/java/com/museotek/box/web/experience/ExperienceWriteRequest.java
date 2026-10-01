@@ -2,6 +2,8 @@ package com.museotek.box.web.experience;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.museotek.box.application.experience.ExperienceDocument;
+import com.museotek.box.domain.rule.RuleCondition;
+import com.museotek.box.domain.rule.RuleEffect;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
@@ -9,9 +11,9 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
-// Mirrors ExperienceDocument's shape field-for-field (see that record's own note on why
-// type/eventType/action stay plain strings here too, resolved into real enums only once the
-// write actually applies). content is bound as a JsonNode, not a String, since the client sends
+// Mirrors ExperienceDocument's shape field-for-field: types (block type, trigger, destination,
+// condition/effect types) stay plain strings here too, resolved into real enums only once the
+// write actually applies. content is bound as a JsonNode, not a String, since the client sends
 // it as a nested JSON value, not a pre-escaped string - toDocument() serialises it back to text
 // for the jsonb column.
 public record ExperienceWriteRequest(
@@ -75,20 +77,31 @@ public record ExperienceWriteRequest(
         }
     }
 
+    // condition and effects bind straight to the domain value records: they are plain strings and
+    // numbers, checked by ExperienceDocumentValidator like the rest of the document.
     public record RuleRequest(
             @NotBlank String ruleKey,
-            @NotBlank String eventType,
-            @NotBlank String action,
             @NotNull Integer position,
-            Long scanObjectTypeId,
-            String triggerBlockKey,
-            String targetSceneKey,
-            String targetBlockKey
+            @NotNull @Valid TriggerRequest trigger,
+            RuleCondition condition,
+            @NotNull List<RuleEffect> effects,
+            @NotNull @Valid DestinationRequest destination
     ) {
         ExperienceDocument.RuleDocument toDocument() {
             return new ExperienceDocument.RuleDocument(
-                    ruleKey, eventType, action, position, scanObjectTypeId,
-                    triggerBlockKey, targetSceneKey, targetBlockKey);
+                    ruleKey, position, trigger.toDocument(), condition, effects, destination.toDocument());
+        }
+    }
+
+    public record TriggerRequest(@NotBlank String type, Long scanObjectTypeId, Integer seconds) {
+        ExperienceDocument.TriggerDocument toDocument() {
+            return new ExperienceDocument.TriggerDocument(type, scanObjectTypeId, seconds);
+        }
+    }
+
+    public record DestinationRequest(@NotBlank String type, String targetSceneKey) {
+        ExperienceDocument.DestinationDocument toDocument() {
+            return new ExperienceDocument.DestinationDocument(type, targetSceneKey);
         }
     }
 

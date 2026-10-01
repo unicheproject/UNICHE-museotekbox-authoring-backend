@@ -1,9 +1,11 @@
 package com.museotek.box.application.experience;
 
 import com.museotek.box.application.experience.ExperienceDocument.BlockDocument;
+import com.museotek.box.application.experience.ExperienceDocument.DestinationDocument;
 import com.museotek.box.application.experience.ExperienceDocument.FlowDocument;
 import com.museotek.box.application.experience.ExperienceDocument.RuleDocument;
 import com.museotek.box.application.experience.ExperienceDocument.SceneDocument;
+import com.museotek.box.application.experience.ExperienceDocument.TriggerDocument;
 import com.museotek.box.application.experience.ExperienceDocument.VariableDocument;
 import com.museotek.box.application.projectaccess.ProjectAccessGuard;
 import com.museotek.box.application.scanobject.ScanObjectSupport;
@@ -17,8 +19,9 @@ import com.museotek.box.domain.experience.VariableKind;
 import com.museotek.box.domain.experience.StaleExperienceVersionException;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.rule.Rule;
-import com.museotek.box.domain.rule.RuleAction;
-import com.museotek.box.domain.rule.RuleEventType;
+import com.museotek.box.domain.rule.RuleDestination;
+import com.museotek.box.domain.rule.RuleEffect;
+import com.museotek.box.domain.rule.RuleTrigger;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.domain.scene.Scene;
@@ -82,7 +85,9 @@ class SaveExperienceUseCaseTest {
         stubAccessAndEmptyProject(project);
 
         BlockDocument block = new BlockDocument("1", "TEXT", 0, "{}");
-        RuleDocument rule = new RuleDocument("1", "TAG_SCANNED", "SHOW_BLOCK", 0, null, null, null, "1");
+        RuleEffect reply = new RuleEffect("REPLY", null, null, null, "green", "Correct!", null, null, null, null);
+        RuleDocument rule = new RuleDocument("1", 0, new TriggerDocument("SCAN_OTHER", null, null), null,
+                List.of(reply), new DestinationDocument("STAY", null));
         SceneDocument scene = new SceneDocument("1", "Scene One", 0, true, null, List.of(block), List.of(rule));
 
         ExperienceView view = useCase.execute(projectId, 0, document(List.of(scene)));
@@ -94,6 +99,11 @@ class SaveExperienceUseCaseTest {
         assertThat(view.scenes()).hasSize(1);
         assertThat(view.scenes().get(0).blocks()).extracting(Block::getBlockKey).containsExactly("1");
         assertThat(view.scenes().get(0).rules()).extracting(Rule::getRuleKey).containsExactly("1");
+        Rule savedRule = view.scenes().get(0).rules().get(0);
+        assertThat(savedRule.getTriggerType()).isEqualTo(RuleTrigger.SCAN_OTHER);
+        assertThat(savedRule.getEffects()).containsExactly(reply);
+        assertThat(savedRule.getDestinationType()).isEqualTo(RuleDestination.STAY);
+        assertThat(savedRule.getTargetSceneKey()).isNull();
 
         ArgumentCaptor<Project> savedProject = ArgumentCaptor.forClass(Project.class);
         verify(projectRepository).save(savedProject.capture());

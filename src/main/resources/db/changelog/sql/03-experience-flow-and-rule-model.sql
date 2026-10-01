@@ -40,3 +40,15 @@ ALTER TABLE rules
 ALTER TABLE experience_flows
     ADD COLUMN output VARCHAR(15) NOT NULL DEFAULT 'DISPLAY';
 --rollback ALTER TABLE experience_flows DROP COLUMN output;
+
+--changeset museotekbox:0019-switch-rules-to-v2
+--comment Rule model v2 goes live. Existing rules were test data only (flow/rule-model proposal, decision 4), so they are wiped rather than mapped; the new columns become required and the old ones are dropped
+DELETE FROM rules;
+ALTER TABLE rules
+    ALTER COLUMN trigger_type SET NOT NULL,
+    ALTER COLUMN destination_type SET NOT NULL,
+    DROP COLUMN event_type,
+    DROP COLUMN action,
+    DROP COLUMN trigger_block_key,
+    DROP COLUMN target_block_key;
+--rollback ALTER TABLE rules ADD COLUMN event_type VARCHAR(31), ADD COLUMN action VARCHAR(31), ADD COLUMN trigger_block_key VARCHAR(64), ADD COLUMN target_block_key VARCHAR(64), ALTER COLUMN trigger_type DROP NOT NULL, ALTER COLUMN destination_type DROP NOT NULL;

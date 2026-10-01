@@ -16,8 +16,8 @@ import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.experience.StaleExperienceVersionException;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.rule.Rule;
-import com.museotek.box.domain.rule.RuleAction;
-import com.museotek.box.domain.rule.RuleEventType;
+import com.museotek.box.domain.rule.RuleDestination;
+import com.museotek.box.domain.rule.RuleTrigger;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scene.Scene;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
@@ -162,14 +162,6 @@ public class SaveExperienceUseCase {
                     errors.add("block '" + block.blockKey() + "' type '" + block.type() + "' is not a valid block type");
                 }
             }
-            for (RuleDocument rule : scene.rules()) {
-                if (!isValidEnum(RuleEventType.class, rule.eventType())) {
-                    errors.add("rule '" + rule.ruleKey() + "' eventType '" + rule.eventType() + "' is not a valid event type");
-                }
-                if (!isValidEnum(RuleAction.class, rule.action())) {
-                    errors.add("rule '" + rule.ruleKey() + "' action '" + rule.action() + "' is not a valid action");
-                }
-            }
         }
         return errors;
     }
@@ -188,8 +180,7 @@ public class SaveExperienceUseCase {
 
     // Children before parents: rules/blocks reference scenes via a real FK, so a scene being
     // removed must have its rules/blocks removed first. Rules and blocks have no FK between
-    // them (trigger/target block keys are plain strings, validated at the document layer only),
-    // so their own deletion order relative to each other doesn't matter.
+    // them, so their own deletion order relative to each other doesn't matter.
     private void deleteRowsMissingFromDocument(
             ExperienceDocument document, List<Scene> existingScenes, List<Block> existingBlocks, List<Rule> existingRules
     ) {
@@ -256,14 +247,15 @@ public class SaveExperienceUseCase {
             rule.setRuleKey(ruleDoc.ruleKey());
         }
         rule.setScene(scene);
-        rule.setEventType(RuleEventType.valueOf(ruleDoc.eventType()));
-        rule.setAction(RuleAction.valueOf(ruleDoc.action()));
         rule.setPosition(ruleDoc.position());
-        ScanObjectType scanObjectType = scanObjectSupport.resolveType(orgId, ruleDoc.scanObjectTypeId());
+        rule.setTriggerType(RuleTrigger.valueOf(ruleDoc.trigger().type()));
+        ScanObjectType scanObjectType = scanObjectSupport.resolveType(orgId, ruleDoc.trigger().scanObjectTypeId());
         rule.setScanObjectType(scanObjectType);
-        rule.setTriggerBlockKey(ruleDoc.triggerBlockKey());
-        rule.setTargetSceneKey(ruleDoc.targetSceneKey());
-        rule.setTargetBlockKey(ruleDoc.targetBlockKey());
+        rule.setTriggerSeconds(ruleDoc.trigger().seconds());
+        rule.setCondition(ruleDoc.condition());
+        rule.setEffects(new ArrayList<>(ruleDoc.effects()));
+        rule.setDestinationType(RuleDestination.valueOf(ruleDoc.destination().type()));
+        rule.setTargetSceneKey(ruleDoc.destination().targetSceneKey());
         return ruleRepository.save(rule);
     }
 

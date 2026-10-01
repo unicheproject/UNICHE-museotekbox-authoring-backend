@@ -1,16 +1,25 @@
 package com.museotek.box.application.experience;
 
 import com.museotek.box.application.experience.ExperienceDocument.BlockDocument;
+import com.museotek.box.application.experience.ExperienceDocument.DestinationDocument;
 import com.museotek.box.application.experience.ExperienceDocument.RuleDocument;
 import com.museotek.box.application.experience.ExperienceDocument.SceneDocument;
+import com.museotek.box.application.experience.ExperienceDocument.TriggerDocument;
 import com.museotek.box.application.experience.ExperienceDocument.VariableDocument;
 import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.experience.VariableKind;
+import com.museotek.box.domain.rule.RuleCondition;
+import com.museotek.box.domain.rule.RuleDestination;
+import com.museotek.box.domain.rule.RuleEffect;
+import com.museotek.box.domain.rule.RuleTrigger;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -31,6 +40,19 @@ public class ExperienceDocumentValidator {
     // Variable keys are names the frontend picks ("correct", "found"), not counter-issued numbers.
     private static final Pattern VARIABLE_KEY_PATTERN = Pattern.compile("^[A-Za-z][A-Za-z0-9_]{0,63}$");
     private static final Pattern INTEGER_PATTERN = Pattern.compile("^-?\\d{1,9}$");
+
+    // Condition and effect types (see RuleCondition / RuleEffect for what each one needs).
+    private static final String CONDITION_VAR_CMP = "VAR_CMP";
+    private static final String CONDITION_FLAG_IS = "FLAG_IS";
+    private static final Set<String> NUMBER_OPS = Set.of("GTE", "LTE", "GT", "LT", "EQ", "NEQ");
+    private static final String EFFECT_REPLY = "REPLY";
+    private static final String EFFECT_BOX_SCREEN = "BOX_SCREEN";
+    private static final String EFFECT_BOX_AUDIO = "BOX_AUDIO";
+    private static final String EFFECT_SET_NUMBER = "SET_NUMBER";
+    private static final String EFFECT_ADD_NUMBER = "ADD_NUMBER";
+    private static final String EFFECT_SET_FLAG = "SET_FLAG";
+    private static final List<String> EFFECT_TYPES = List.of(
+            EFFECT_REPLY, EFFECT_BOX_SCREEN, EFFECT_BOX_AUDIO, EFFECT_SET_NUMBER, EFFECT_ADD_NUMBER, EFFECT_SET_FLAG);
 
     // Flow schema versions this backend accepts. Bump together with the frontend's flow format.
     private static final Set<Integer> SUPPORTED_FLOW_SCHEMA_VERSIONS = Set.of(1);
@@ -107,14 +129,7 @@ public class ExperienceDocumentValidator {
     }
 
     private VariableKind parseVariableKind(String kind) {
-        if (kind == null) {
-            return null;
-        }
-        try {
-            return VariableKind.valueOf(kind);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+        return parseEnum(VariableKind.class, kind);
     }
 
     private boolean isValidInitial(VariableKind kind, String initial) {
@@ -159,42 +174,203 @@ public class ExperienceDocumentValidator {
     // Every target_scene_key/target_block_key/trigger_block_key must resolve to something
     // in the document, and exactly one scene must be the start scene.
     private void validateGraph(ExperienceDocument document, List<String> errors) {
-        Set<String> allSceneKeys = new HashSet<>();
-        for (SceneDocument scene : document.scenes()) {
-            allSceneKeys.add(scene.sceneKey());
-        }
-
         int startSceneCount = 0;
         for (SceneDocument scene : document.scenes()) {
             if (scene.isStart()) {
                 startSceneCount++;
             }
-
-            // trigger_block_key/target_block_key name a block in the rule's OWN scene, not
-            // anywhere in the project - a rule reacts to / shows a block of the scene it lives in.
-            Set<String> ownBlockKeys = new HashSet<>();
-            for (BlockDocument block : scene.blocks()) {
-                ownBlockKeys.add(block.blockKey());
-            }
-
-            for (RuleDocument rule : scene.rules()) {
-                if (rule.targetSceneKey() != null && !allSceneKeys.contains(rule.targetSceneKey())) {
-                    errors.add("rule '" + rule.ruleKey() + "' target_scene_key '" + rule.targetSceneKey()
-                            + "' does not resolve to any scene in this document");
-                }
-                if (rule.targetBlockKey() != null && !ownBlockKeys.contains(rule.targetBlockKey())) {
-                    errors.add("rule '" + rule.ruleKey() + "' target_block_key '" + rule.targetBlockKey()
-                            + "' does not resolve to a block in the same scene ('" + scene.sceneKey() + "')");
-                }
-                if (rule.triggerBlockKey() != null && !ownBlockKeys.contains(rule.triggerBlockKey())) {
-                    errors.add("rule '" + rule.ruleKey() + "' trigger_block_key '" + rule.triggerBlockKey()
-                            + "' does not resolve to a block in the same scene ('" + scene.sceneKey() + "')");
-                }
-            }
         }
-
         if (startSceneCount != 1) {
             errors.add("exactly one scene must have is_start = true, found " + startSceneCount);
+        }
+        validateRules(document, errors);
+    }
+
+    // Rule model v2: when (trigger) ... if (condition) ... do (effects, in order) ... then
+    // (destination). Only structure is refused here. A gap the curator still has to fill (a SCAN
+    // with no card chosen yet, a VIDEO_ENDED on a scene without a video) is not an error.
+    private void validateRules(ExperienceDocument document, List<String> errors) {
+        Set<String> allSceneKeys = new HashSet<>();
+        for (SceneDocument scene : document.scenes()) {
+            allSceneKeys.add(scene.sceneKey());
+        }
+        Map<String, VariableKind> declaredVariables = declaredVariables(document);
+
+        for (SceneDocument scene : document.scenes()) {
+            // Of the rules whose trigger matches, the first by position runs - so a catch-all
+            // (SCAN_OTHER) placed before another scan rule makes that rule unreachable.
+            List<RuleDocument> byPosition = scene.rules().stream()
+                    .sorted(Comparator.comparing(RuleDocument::position, Comparator.nullsLast(Comparator.naturalOrder())))
+                    .toList();
+            String catchAllRuleKey = null;
+            for (RuleDocument rule : byPosition) {
+                String label = "rule '" + rule.ruleKey() + "'";
+                RuleTrigger trigger = validateTrigger(rule.trigger(), scene, label, errors);
+                if (trigger == RuleTrigger.SCAN || trigger == RuleTrigger.SCAN_OTHER) {
+                    if (catchAllRuleKey != null) {
+                        errors.add(label + " can never run: the catch-all rule '" + catchAllRuleKey
+                                + "' (SCAN_OTHER) comes before it in scene '" + scene.sceneKey() + "'");
+                    } else if (trigger == RuleTrigger.SCAN_OTHER) {
+                        catchAllRuleKey = rule.ruleKey();
+                    }
+                }
+                validateCondition(rule.condition(), declaredVariables, label, errors);
+                validateEffects(rule.effects(), declaredVariables, label, errors);
+                validateDestination(rule.destination(), allSceneKeys, label, errors);
+            }
+        }
+    }
+
+    // Only the variables that are themselves valid: a broken declaration is already reported by
+    // validateVariables, and shouldn't also produce an "undeclared" error on every use.
+    private Map<String, VariableKind> declaredVariables(ExperienceDocument document) {
+        Map<String, VariableKind> declared = new HashMap<>();
+        for (VariableDocument variable : document.variables()) {
+            VariableKind kind = parseVariableKind(variable.kind());
+            if (variable.key() != null && kind != null) {
+                declared.putIfAbsent(variable.key(), kind);
+            }
+        }
+        return declared;
+    }
+
+    private RuleTrigger validateTrigger(TriggerDocument trigger, SceneDocument scene, String label, List<String> errors) {
+        if (trigger == null) {
+            errors.add(label + " has no trigger");
+            return null;
+        }
+        RuleTrigger type = parseEnum(RuleTrigger.class, trigger.type());
+        if (type == null) {
+            errors.add(label + " trigger '" + trigger.type() + "' is not valid (expected one of "
+                    + List.of(RuleTrigger.values()) + ")");
+            return null;
+        }
+        if (type == RuleTrigger.TIMER_ELAPSED && (trigger.seconds() == null || trigger.seconds() <= 0)) {
+            errors.add(label + " trigger TIMER_ELAPSED needs seconds > 0");
+        }
+        if (type != RuleTrigger.TIMER_ELAPSED && trigger.seconds() != null) {
+            errors.add(label + " trigger " + type + " can't have seconds (only TIMER_ELAPSED)");
+        }
+        if (type != RuleTrigger.SCAN && trigger.scanObjectTypeId() != null) {
+            errors.add(label + " trigger " + type + " can't have a scan object type (only SCAN)");
+        }
+        if (type == RuleTrigger.SESSION_STARTED && !scene.isStart()) {
+            errors.add(label + " trigger SESSION_STARTED is only allowed on the start scene");
+        }
+        return type;
+    }
+
+    private void validateCondition(RuleCondition condition, Map<String, VariableKind> declared, String label, List<String> errors) {
+        if (condition == null) {
+            return; // no condition = always
+        }
+        if (CONDITION_VAR_CMP.equals(condition.type())) {
+            checkVariable(condition.variable(), VariableKind.NUMBER, declared, label + " condition", errors);
+            if (condition.op() == null || !NUMBER_OPS.contains(condition.op())) {
+                errors.add(label + " condition op '" + condition.op() + "' is not valid (expected one of " + NUMBER_OPS + ")");
+            }
+            if (condition.value() == null || !INTEGER_PATTERN.matcher(condition.value()).matches()) {
+                errors.add(label + " condition value '" + condition.value() + "' is not an integer");
+            }
+        } else if (CONDITION_FLAG_IS.equals(condition.type())) {
+            checkVariable(condition.variable(), VariableKind.FLAG, declared, label + " condition", errors);
+            if (!isBoolean(condition.value())) {
+                errors.add(label + " condition value '" + condition.value() + "' is not true or false");
+            }
+        } else {
+            errors.add(label + " condition type '" + condition.type() + "' is not valid (expected VAR_CMP or FLAG_IS)");
+        }
+    }
+
+    private void validateEffects(List<RuleEffect> effects, Map<String, VariableKind> declared, String label, List<String> errors) {
+        if (effects == null) {
+            errors.add(label + " has no effects list (send [] for none)");
+            return;
+        }
+        for (int i = 0; i < effects.size(); i++) {
+            RuleEffect effect = effects.get(i);
+            String effectLabel = label + " effect " + (i + 1);
+            if (effect == null) {
+                errors.add(effectLabel + " is empty");
+                continue;
+            }
+            String type = effect.type();
+            if (EFFECT_REPLY.equals(type)) {
+                if (isBlank(effect.color())) {
+                    errors.add(effectLabel + " REPLY needs a color");
+                }
+            } else if (EFFECT_BOX_SCREEN.equals(type)) {
+                if (isBlank(effect.text())) {
+                    errors.add(effectLabel + " BOX_SCREEN needs a text");
+                }
+            } else if (EFFECT_BOX_AUDIO.equals(type)) {
+                // the sound may still be unpicked: a gap, not a structural error
+            } else if (EFFECT_SET_NUMBER.equals(type)) {
+                checkVariable(effect.variable(), VariableKind.NUMBER, declared, effectLabel, errors);
+                if (effect.value() == null || !INTEGER_PATTERN.matcher(effect.value()).matches()) {
+                    errors.add(effectLabel + " SET_NUMBER value '" + effect.value() + "' is not an integer");
+                }
+            } else if (EFFECT_ADD_NUMBER.equals(type)) {
+                checkVariable(effect.variable(), VariableKind.NUMBER, declared, effectLabel, errors);
+                if (effect.amount() == null) {
+                    errors.add(effectLabel + " ADD_NUMBER needs an amount");
+                }
+            } else if (EFFECT_SET_FLAG.equals(type)) {
+                checkVariable(effect.variable(), VariableKind.FLAG, declared, effectLabel, errors);
+                if (!isBoolean(effect.value())) {
+                    errors.add(effectLabel + " SET_FLAG value '" + effect.value() + "' is not true or false");
+                }
+            } else {
+                errors.add(effectLabel + " type '" + type + "' is not valid (expected one of " + EFFECT_TYPES + ")");
+            }
+        }
+    }
+
+    private void validateDestination(DestinationDocument destination, Set<String> allSceneKeys, String label, List<String> errors) {
+        if (destination == null) {
+            errors.add(label + " has no destination");
+            return;
+        }
+        RuleDestination type = parseEnum(RuleDestination.class, destination.type());
+        if (type == null) {
+            errors.add(label + " destination '" + destination.type() + "' is not valid (expected GO_TO, STAY or END)");
+            return;
+        }
+        if (type == RuleDestination.GO_TO) {
+            if (destination.targetSceneKey() == null || !allSceneKeys.contains(destination.targetSceneKey())) {
+                errors.add(label + " target_scene_key '" + destination.targetSceneKey()
+                        + "' does not resolve to any scene in this document");
+            }
+        } else if (destination.targetSceneKey() != null) {
+            errors.add(label + " destination " + type + " can't have a target scene (only GO_TO)");
+        }
+    }
+
+    private void checkVariable(String key, VariableKind expected, Map<String, VariableKind> declared, String label, List<String> errors) {
+        VariableKind actual = declared.get(key);
+        if (actual == null) {
+            errors.add(label + " uses variable '" + key + "', which is not declared");
+        } else if (actual != expected) {
+            errors.add(label + " needs a " + expected + " variable, but '" + key + "' is a " + actual);
+        }
+    }
+
+    private static boolean isBoolean(String value) {
+        return "true".equals(value) || "false".equals(value);
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static <E extends Enum<E>> E parseEnum(Class<E> type, String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Enum.valueOf(type, value);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 

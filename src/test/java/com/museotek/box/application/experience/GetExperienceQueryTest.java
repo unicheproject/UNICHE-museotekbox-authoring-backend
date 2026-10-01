@@ -7,8 +7,8 @@ import com.museotek.box.domain.experience.ExperienceFlow;
 import com.museotek.box.domain.experience.ExperienceVariable;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.rule.Rule;
-import com.museotek.box.domain.rule.RuleAction;
-import com.museotek.box.domain.rule.RuleEventType;
+import com.museotek.box.domain.rule.RuleDestination;
+import com.museotek.box.domain.rule.RuleTrigger;
 import com.museotek.box.domain.scene.Scene;
 import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
 import com.museotek.box.infrastructure.repository.BlockRepository;
@@ -160,8 +160,8 @@ class GetExperienceQueryTest {
         Rule rule = new Rule();
         rule.setScene(scene);
         rule.setRuleKey(ruleKey);
-        rule.setEventType(RuleEventType.TAG_SCANNED);
-        rule.setAction(RuleAction.GO_TO_SCENE);
+        rule.setTriggerType(RuleTrigger.SCAN_OTHER);
+        rule.setDestinationType(RuleDestination.STAY);
         return rule;
     }
 }
