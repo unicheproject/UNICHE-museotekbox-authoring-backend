@@ -7,6 +7,9 @@ docker-compose.override.yml
 # Build output
 target/
 
+# Media library files written by a locally running backend
+uploads/
+
 # Editor / OS
 .idea/
 *.iml
