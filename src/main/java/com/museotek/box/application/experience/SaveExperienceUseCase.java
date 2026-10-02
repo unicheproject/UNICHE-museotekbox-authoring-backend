@@ -12,6 +12,8 @@ import com.museotek.box.domain.experience.ExperienceFlow;
 import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.experience.ExperienceVariable;
 import com.museotek.box.domain.experience.VariableKind;
+import com.museotek.box.domain.media.Media;
+import com.museotek.box.domain.media.MediaKind;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.experience.StaleExperienceVersionException;
 import com.museotek.box.domain.project.Project;
@@ -22,6 +24,7 @@ import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scene.Scene;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.repository.BlockRepository;
+import com.museotek.box.infrastructure.repository.MediaRepository;
 import com.museotek.box.infrastructure.repository.ExperienceFlowRepository;
 import com.museotek.box.infrastructure.repository.ExperienceVariableRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
@@ -57,6 +60,7 @@ public class SaveExperienceUseCase {
     private final RuleRepository ruleRepository;
     private final ExperienceFlowRepository experienceFlowRepository;
     private final ExperienceVariableRepository experienceVariableRepository;
+    private final MediaRepository mediaRepository;
     private final ScanObjectSupport scanObjectSupport;
     private final ExperienceDocumentValidator validator;
 
@@ -68,6 +72,7 @@ public class SaveExperienceUseCase {
             RuleRepository ruleRepository,
             ExperienceFlowRepository experienceFlowRepository,
             ExperienceVariableRepository experienceVariableRepository,
+            MediaRepository mediaRepository,
             ScanObjectSupport scanObjectSupport,
             ExperienceDocumentValidator validator
     ) {
@@ -78,6 +83,7 @@ public class SaveExperienceUseCase {
         this.ruleRepository = ruleRepository;
         this.experienceFlowRepository = experienceFlowRepository;
         this.experienceVariableRepository = experienceVariableRepository;
+        this.mediaRepository = mediaRepository;
         this.scanObjectSupport = scanObjectSupport;
         this.validator = validator;
     }
@@ -106,7 +112,8 @@ public class SaveExperienceUseCase {
                 project.getNextSceneSeq(),
                 project.getNextBlockSeq(),
                 project.getNextRuleSeq(),
-                existingOutput);
+                existingOutput,
+                knownMedia(orgId, document));
 
         List<String> errors = new ArrayList<>(validator.validate(document, context).errors());
         errors.addAll(validateEnumValues(document));
@@ -260,6 +267,17 @@ public class SaveExperienceUseCase {
     }
 
     // output is only ever set on the first save; the validator already refused any change to it.
+    // Only the media the document references, and only from the project's own org: an id from
+    // another org simply isn't found, and the validator reports it as not existing.
+    private Map<UUID, MediaKind> knownMedia(UUID orgId, ExperienceDocument document) {
+        Set<UUID> referenced = ExperienceDocumentValidator.referencedMediaIds(document);
+        if (referenced.isEmpty()) {
+            return Map.of();
+        }
+        List<Media> found = mediaRepository.findByOrgIdAndIdIn(orgId, referenced);
+        return found.stream().collect(Collectors.toMap(Media::getId, Media::getKind));
+    }
+
     private ExperienceFlow saveFlow(UUID projectId, ExperienceFlow existingFlow, ExperienceDocument document) {
         ExperienceFlow flow = existingFlow;
         if (flow == null) {

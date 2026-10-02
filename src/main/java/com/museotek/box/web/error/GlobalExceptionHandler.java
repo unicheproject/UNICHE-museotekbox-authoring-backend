@@ -6,6 +6,7 @@ import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
+import com.museotek.box.domain.media.MediaInUseException;
 import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.domain.media.MediaTooLargeException;
 import com.museotek.box.domain.media.UnsupportedMediaFileException;
@@ -65,6 +66,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
     public ErrorEnvelope handleProjectNotInBoxOrg(ProjectNotInBoxOrgException e) {
         return new ErrorEnvelope("PROJECT_NOT_IN_BOX_ORG", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(MediaInUseException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorEnvelope handleMediaInUse(MediaInUseException e) {
+        return new ErrorEnvelope("MEDIA_IN_USE", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(MediaNotFoundException.class)

@@ -35,7 +35,8 @@ public record ExperienceDocument(
     ) {
     }
 
-    public record BlockDocument(String blockKey, String type, Integer position, String content) {
+    // mediaId: the media library item the block shows (IMAGE/VIDEO blocks), lifted out of content by the web layer.
+    public record BlockDocument(String blockKey, String type, Integer position, String content, String mediaId) {
     }
 
     // "When ... if ... do ... then": the flow/rule-model proposal's rule model v2.

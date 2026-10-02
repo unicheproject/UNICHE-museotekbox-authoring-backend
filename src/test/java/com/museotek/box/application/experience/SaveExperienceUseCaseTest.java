@@ -16,6 +16,8 @@ import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.experience.ExperienceVariable;
 import com.museotek.box.domain.experience.VariableKind;
+import com.museotek.box.domain.media.Media;
+import com.museotek.box.domain.media.MediaKind;
 import com.museotek.box.domain.experience.StaleExperienceVersionException;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.rule.Rule;
@@ -30,6 +32,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.repository.BlockRepository;
 import com.museotek.box.infrastructure.repository.ExperienceFlowRepository;
 import com.museotek.box.infrastructure.repository.ExperienceVariableRepository;
+import com.museotek.box.infrastructure.repository.MediaRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.infrastructure.repository.RuleRepository;
 import com.museotek.box.infrastructure.repository.SceneRepository;
@@ -46,6 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -61,6 +65,7 @@ class SaveExperienceUseCaseTest {
     private final RuleRepository ruleRepository = mock(RuleRepository.class);
     private final ExperienceFlowRepository experienceFlowRepository = mock(ExperienceFlowRepository.class);
     private final ExperienceVariableRepository experienceVariableRepository = mock(ExperienceVariableRepository.class);
+    private final MediaRepository mediaRepository = mock(MediaRepository.class);
     private final ScanObjectRepository scanObjectRepository = mock(ScanObjectRepository.class);
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final ScanObjectSupport scanObjectSupport = new ScanObjectSupport(scanObjectRepository, scanObjectTypeRepository);
@@ -68,7 +73,7 @@ class SaveExperienceUseCaseTest {
 
     private final SaveExperienceUseCase useCase = new SaveExperienceUseCase(
             projectAccessGuard, projectRepository, sceneRepository, blockRepository, ruleRepository,
-            experienceFlowRepository, experienceVariableRepository, scanObjectSupport, validator);
+            experienceFlowRepository, experienceVariableRepository, mediaRepository, scanObjectSupport, validator);
 
     private static final FlowDocument FLOW = new FlowDocument(1, "{\"details\":{},\"islands\":[]}");
 
@@ -84,7 +89,7 @@ class SaveExperienceUseCaseTest {
         Project project = project(0, 1, 1, 1);
         stubAccessAndEmptyProject(project);
 
-        BlockDocument block = new BlockDocument("1", "TEXT", 0, "{}");
+        BlockDocument block = new BlockDocument("1", "TEXT", 0, "{}", null);
         RuleEffect reply = new RuleEffect("REPLY", null, null, null, "green", "Correct!", null, null, null, null);
         RuleDocument rule = new RuleDocument("1", 0, new TriggerDocument("SCAN_OTHER", null, null), null,
                 List.of(reply), new DestinationDocument("STAY", null));
@@ -117,7 +122,7 @@ class SaveExperienceUseCaseTest {
         Block existingBlock = block(20L, existingScene, "1", BlockType.TEXT, "{}");
         stubExistingRows(project, List.of(existingScene), List.of(existingBlock), List.of());
 
-        BlockDocument block = new BlockDocument("1", "IMAGE", 0, "{\"a\":1}");
+        BlockDocument block = new BlockDocument("1", "IMAGE", 0, "{\"a\":1}", null);
         SceneDocument scene = new SceneDocument("1", "New Name", 0, true, null, List.of(block), List.of());
 
         ExperienceView view = useCase.execute(projectId, 5, document(List.of(scene)));
@@ -142,7 +147,7 @@ class SaveExperienceUseCaseTest {
         Block removedBlock = block(21L, removedScene, "2", BlockType.TEXT, "{}");
         stubExistingRows(project, List.of(keptScene, removedScene), List.of(keptBlock, removedBlock), List.of());
 
-        BlockDocument block = new BlockDocument("1", "TEXT", 0, "{}");
+        BlockDocument block = new BlockDocument("1", "TEXT", 0, "{}", null);
         SceneDocument scene = new SceneDocument("1", "Kept", 0, true, null, List.of(block), List.of());
 
         useCase.execute(projectId, 0, document(List.of(scene)));
@@ -196,7 +201,7 @@ class SaveExperienceUseCaseTest {
         Project project = project(0, 1, 1, 1);
         stubAccessAndEmptyProject(project);
 
-        BlockDocument badBlock = new BlockDocument("1", "NOT_A_TYPE", 0, "{}");
+        BlockDocument badBlock = new BlockDocument("1", "NOT_A_TYPE", 0, "{}", null);
         SceneDocument scene = new SceneDocument("1", "A", 0, true, null, List.of(badBlock), List.of());
 
         assertThatThrownBy(() -> useCase.execute(projectId, 0, document(List.of(scene))))
@@ -319,6 +324,38 @@ class SaveExperienceUseCaseTest {
 
         assertNoWritesHappened();
         assertThat(existingFlow.getOutput()).isEqualTo(ExperienceOutput.DISPLAY);
+    }
+
+
+    @Test
+    void mediaReference_isLookedUpInTheProjectsOrgAndSaved() {
+        stubAccessAndEmptyProject(project(0, 1, 1, 1));
+        UUID image = UUID.randomUUID();
+        Media media = new Media();
+        media.setId(image);
+        media.setKind(MediaKind.IMAGE);
+        when(mediaRepository.findByOrgIdAndIdIn(eq(orgId), eq(java.util.Set.of(image)))).thenReturn(List.of(media));
+        BlockDocument block = new BlockDocument("1", "IMAGE", 0, "{\"mediaId\":\"" + image + "\"}", image.toString());
+        SceneDocument scene = new SceneDocument("1", "Start", 0, true, null, List.of(block), List.of());
+
+        ExperienceView view = useCase.execute(projectId, 0, document(List.of(scene)));
+
+        assertThat(view.scenes().get(0).blocks().get(0).getContent()).contains(image.toString());
+    }
+
+    @Test
+    void mediaFromAnotherOrg_isRefusedWithoutSavingAnything() {
+        stubAccessAndEmptyProject(project(0, 1, 1, 1));
+        UUID otherOrgsImage = UUID.randomUUID();
+        when(mediaRepository.findByOrgIdAndIdIn(eq(orgId), any())).thenReturn(List.of()); // not found in this org
+        BlockDocument block = new BlockDocument("1", "IMAGE", 0, "{}", otherOrgsImage.toString());
+        SceneDocument scene = new SceneDocument("1", "Start", 0, true, null, List.of(block), List.of());
+
+        assertThatThrownBy(() -> useCase.execute(projectId, 0, document(List.of(scene))))
+                .isInstanceOf(ExperienceValidationException.class)
+                .hasMessageContaining("does not exist in this organisation's media library");
+
+        assertNoWritesHappened();
     }
 
     private ExperienceDocument document(List<SceneDocument> scenes) {

@@ -7,12 +7,15 @@ import com.museotek.box.application.experience.ExperienceDocument.RuleDocument;
 import com.museotek.box.application.experience.ExperienceDocument.SceneDocument;
 import com.museotek.box.application.experience.ExperienceDocument.TriggerDocument;
 import com.museotek.box.application.experience.ExperienceDocument.VariableDocument;
+import com.museotek.box.domain.media.MediaKind;
 import com.museotek.box.domain.rule.RuleCondition;
 import com.museotek.box.domain.rule.RuleEffect;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,7 +24,7 @@ class ExperienceDocumentValidatorTest {
     private final ExperienceDocumentValidator validator = new ExperienceDocumentValidator();
 
     private static final ExperienceWriteContext EMPTY_PROJECT_CONTEXT =
-            new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 1, 1, 1, null);
+            new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 1, 1, 1, null, Map.of());
 
     private static final FlowDocument VALID_FLOW = new FlowDocument(1, "{\"details\":{},\"islands\":[]}");
 
@@ -111,7 +114,7 @@ class ExperienceDocumentValidatorTest {
 
     @Test
     void outputDifferentFromStoredOne_isRejected() {
-        ExperienceWriteContext context = new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 1, 1, 1, "DISPLAY");
+        ExperienceWriteContext context = new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 1, 1, 1, "DISPLAY", Map.of());
         ExperienceDocument document = new ExperienceDocument("BOX", VALID_FLOW, List.of(), ONE_START_SCENE);
 
         ExperienceValidationResult result = validator.validate(document, context);
@@ -121,12 +124,78 @@ class ExperienceDocumentValidatorTest {
 
     @Test
     void outputSameAsStoredOne_isValid() {
-        ExperienceWriteContext context = new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 1, 1, 1, "BOX");
+        ExperienceWriteContext context = new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 1, 1, 1, "BOX", Map.of());
         ExperienceDocument document = new ExperienceDocument("BOX", VALID_FLOW, List.of(), ONE_START_SCENE);
 
         ExperienceValidationResult result = validator.validate(document, context);
 
         assertThat(result.errors()).isEmpty();
+    }
+
+
+    @Test
+    void mediaReferences_validWhenTheyExistAndAreTheRightKind() {
+        UUID image = UUID.randomUUID();
+        UUID sound = UUID.randomUUID();
+        ExperienceWriteContext context = mediaContext(Map.of(image, MediaKind.IMAGE, sound, MediaKind.AUDIO));
+        BlockDocument picture = new BlockDocument("1", "IMAGE", 0, "{}", image.toString());
+        RuleEffect reply = new RuleEffect("REPLY", null, null, null, "green", "Correct!", image.toString(), sound.toString(), null, null);
+        RuleDocument rule = rule("1", 0, trigger("SCENE_ENTERED"), null, List.of(reply), STAY);
+        ExperienceDocument document = document(List.of(scene("1", true, List.of(picture), List.of(rule))));
+
+        ExperienceValidationResult result = validator.validate(document, context);
+
+        assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
+    void mediaNotPickedYet_isFine() {
+        BlockDocument picture = new BlockDocument("1", "IMAGE", 0, "{}", null);
+        ExperienceDocument document = document(List.of(scene("1", true, List.of(picture), List.of())));
+
+        ExperienceValidationResult result = validator.validate(document, EMPTY_PROJECT_CONTEXT);
+
+        assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
+    void brokenMediaReferences_areRejected() {
+        UUID image = UUID.randomUUID();
+        UUID unknown = UUID.randomUUID();
+        ExperienceWriteContext context = mediaContext(Map.of(image, MediaKind.IMAGE));
+        BlockDocument notAnId = new BlockDocument("1", "IMAGE", 0, "{}", "vase.jpg");
+        BlockDocument missing = new BlockDocument("2", "IMAGE", 1, "{}", unknown.toString());
+        BlockDocument wrongKind = new BlockDocument("3", "VIDEO", 2, "{}", image.toString());
+        BlockDocument textWithMedia = new BlockDocument("4", "TEXT", 3, "{}", image.toString());
+        RuleEffect soundIsAPicture = new RuleEffect("BOX_AUDIO", null, null, null, null, null, null, null, null, image.toString());
+        RuleDocument rule = rule("1", 0, trigger("SCENE_ENTERED"), null, List.of(soundIsAPicture), STAY);
+        ExperienceDocument document = document(List.of(scene("1", true, List.of(notAnId, missing, wrongKind, textWithMedia), List.of(rule))));
+
+        ExperienceValidationResult result = validator.validate(document, context);
+
+        assertThat(result.errors())
+                .anyMatch(e -> e.contains("block '1' mediaId 'vase.jpg' is not a media id"))
+                .anyMatch(e -> e.contains("block '2'") && e.contains("does not exist in this organisation's media library"))
+                .anyMatch(e -> e.contains("block '3'") && e.contains("needs a VIDEO file") && e.contains("is IMAGE"))
+                .anyMatch(e -> e.contains("block '4' of type TEXT can't reference media"))
+                .anyMatch(e -> e.contains("rule '1' effect 1 url") && e.contains("needs a AUDIO file"));
+    }
+
+    @Test
+    void referencedMediaIds_collectsWellFormedIdsFromBlocksAndEffects() {
+        UUID image = UUID.randomUUID();
+        UUID sound = UUID.randomUUID();
+        BlockDocument picture = new BlockDocument("1", "IMAGE", 0, "{}", image.toString());
+        BlockDocument junk = new BlockDocument("2", "IMAGE", 1, "{}", "not-an-id");
+        RuleEffect reply = new RuleEffect("REPLY", null, null, null, "green", null, null, sound.toString(), null, null);
+        RuleDocument rule = rule("1", 0, trigger("SCENE_ENTERED"), null, List.of(reply), STAY);
+        ExperienceDocument document = document(List.of(scene("1", true, List.of(picture, junk), List.of(rule))));
+
+        assertThat(ExperienceDocumentValidator.referencedMediaIds(document)).containsExactlyInAnyOrder(image, sound);
+    }
+
+    private static ExperienceWriteContext mediaContext(Map<UUID, MediaKind> knownMedia) {
+        return new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 1, 1, 1, null, knownMedia);
     }
 
     private static ExperienceDocument document(List<SceneDocument> scenes) {
@@ -330,7 +399,7 @@ class ExperienceDocumentValidatorTest {
 
     @Test
     void newKeyBehindProjectCounter_isRejected() {
-        ExperienceWriteContext context = new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 5, 1, 1, null);
+        ExperienceWriteContext context = new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 5, 1, 1, null, Map.of());
         ExperienceDocument document = document(List.of(
                 scene("3", true, List.of(), List.of())));
 
@@ -341,7 +410,7 @@ class ExperienceDocumentValidatorTest {
 
     @Test
     void newKeyAtOrAheadOfProjectCounter_isValid() {
-        ExperienceWriteContext context = new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 5, 1, 1, null);
+        ExperienceWriteContext context = new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 5, 1, 1, null, Map.of());
         ExperienceDocument document = document(List.of(
                 scene("5", true, List.of(), List.of())));
 
@@ -354,7 +423,7 @@ class ExperienceDocumentValidatorTest {
     void existingKeyBehindProjectCounter_isExemptFromFreshnessCheck() {
         // "1" already exists (this write is just updating it), so the counter having moved
         // past it doesn't make it stale - only a genuinely NEW key must be ahead of the counter.
-        ExperienceWriteContext context = new ExperienceWriteContext(Set.of("1"), Set.of(), Set.of(), 5, 1, 1, null);
+        ExperienceWriteContext context = new ExperienceWriteContext(Set.of("1"), Set.of(), Set.of(), 5, 1, 1, null, Map.of());
         ExperienceDocument document = document(List.of(
                 scene("1", true, List.of(), List.of())));
 
@@ -381,7 +450,7 @@ class ExperienceDocumentValidatorTest {
     }
 
     private BlockDocument block(String blockKey) {
-        return new BlockDocument(blockKey, "TEXT", 0, "{}");
+        return new BlockDocument(blockKey, "TEXT", 0, "{}", null);
     }
 
     private RuleDocument rule(String ruleKey, int position, TriggerDocument trigger, RuleCondition condition,

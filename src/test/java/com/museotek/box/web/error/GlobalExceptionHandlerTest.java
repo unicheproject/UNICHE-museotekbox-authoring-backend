@@ -6,6 +6,7 @@ import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
+import com.museotek.box.domain.media.MediaInUseException;
 import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.domain.media.MediaTooLargeException;
 import com.museotek.box.domain.media.UnsupportedMediaFileException;
@@ -113,6 +114,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/project-not-in-box-org")
         void projectNotInBoxOrg() {
             throw new ProjectNotInBoxOrgException("Project 123 does not belong to org 456");
+        }
+
+        @GetMapping("/media-in-use")
+        void mediaInUse() {
+            throw new MediaInUseException("Media 1 is still used by an experience");
         }
 
         @GetMapping("/media-not-found")
@@ -278,6 +284,13 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("PROJECT_NOT_IN_BOX_ORG"))
                 .andExpect(jsonPath("$.message").value("Project 123 does not belong to org 456"));
+    }
+
+    @Test
+    void mediaInUseException_mapsTo409() throws Exception {
+        mockMvc.perform(get("/test/media-in-use"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MEDIA_IN_USE"));
     }
 
     @Test

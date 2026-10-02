@@ -72,8 +72,12 @@ public record ExperienceWriteRequest(
             @NotNull Integer position,
             @NotNull JsonNode content
     ) {
+        // content stays the client's JSON; only mediaId is lifted out, so the media reference can be
+        // checked without the application layer parsing JSON.
         ExperienceDocument.BlockDocument toDocument() {
-            return new ExperienceDocument.BlockDocument(blockKey, type, position, content.toString());
+            JsonNode mediaIdNode = content.get("mediaId");
+            String mediaId = mediaIdNode == null || mediaIdNode.isNull() ? null : mediaIdNode.asText();
+            return new ExperienceDocument.BlockDocument(blockKey, type, position, content.toString(), mediaId);
         }
     }
 

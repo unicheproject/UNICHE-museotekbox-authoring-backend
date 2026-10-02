@@ -8,6 +8,7 @@ import com.museotek.box.application.experience.ExperienceDocument.TriggerDocumen
 import com.museotek.box.application.experience.ExperienceDocument.VariableDocument;
 import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.experience.VariableKind;
+import com.museotek.box.domain.media.MediaKind;
 import com.museotek.box.domain.rule.RuleCondition;
 import com.museotek.box.domain.rule.RuleDestination;
 import com.museotek.box.domain.rule.RuleEffect;
@@ -21,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -54,6 +56,9 @@ public class ExperienceDocumentValidator {
     private static final List<String> EFFECT_TYPES = List.of(
             EFFECT_REPLY, EFFECT_BOX_SCREEN, EFFECT_BOX_AUDIO, EFFECT_SET_NUMBER, EFFECT_ADD_NUMBER, EFFECT_SET_FLAG);
 
+    // Block types that show a media library item, and the kind of file each needs.
+    private static final Map<String, MediaKind> BLOCK_MEDIA_KINDS = Map.of("IMAGE", MediaKind.IMAGE, "VIDEO", MediaKind.VIDEO);
+
     // Flow schema versions this backend accepts. Bump together with the frontend's flow format.
     private static final Set<Integer> SUPPORTED_FLOW_SCHEMA_VERSIONS = Set.of(1);
 
@@ -64,6 +69,7 @@ public class ExperienceDocumentValidator {
         validateVariables(document, errors);
         validateKeys(document, errors);
         validateGraph(document, errors);
+        validateMediaReferences(document, context, errors);
         validateFreshness(document, context, errors);
         return new ExperienceValidationResult(errors);
     }
@@ -369,6 +375,101 @@ public class ExperienceDocumentValidator {
         }
         try {
             return Enum.valueOf(type, value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    // Blocks and reply effects point to media library items by id. A missing id is a choice the
+    // curator hasn't made yet (fine); an id that isn't a UUID, doesn't exist in the org, or is the
+    // wrong kind of file would break the experience on the Box, so it is refused.
+    private void validateMediaReferences(ExperienceDocument document, ExperienceWriteContext context, List<String> errors) {
+        Map<UUID, MediaKind> known = context.knownMedia();
+        for (SceneDocument scene : document.scenes()) {
+            for (BlockDocument block : scene.blocks()) {
+                String label = "block '" + block.blockKey() + "'";
+                MediaKind expected = BLOCK_MEDIA_KINDS.get(block.type());
+                if (expected == null) {
+                    if (!isBlank(block.mediaId())) {
+                        errors.add(label + " of type " + block.type() + " can't reference media");
+                    }
+                } else {
+                    checkMedia(label + " mediaId", block.mediaId(), expected, known, errors);
+                }
+            }
+            for (RuleDocument rule : scene.rules()) {
+                if (rule.effects() == null) {
+                    continue; // already reported by validateEffects
+                }
+                for (int i = 0; i < rule.effects().size(); i++) {
+                    RuleEffect effect = rule.effects().get(i);
+                    if (effect == null) {
+                        continue;
+                    }
+                    String label = "rule '" + rule.ruleKey() + "' effect " + (i + 1);
+                    checkMedia(label + " media", effect.media(), MediaKind.IMAGE, known, errors);
+                    checkMedia(label + " audio", effect.audio(), MediaKind.AUDIO, known, errors);
+                    checkMedia(label + " boxVideo", effect.boxVideo(), MediaKind.VIDEO, known, errors);
+                    checkMedia(label + " url", effect.url(), MediaKind.AUDIO, known, errors);
+                }
+            }
+        }
+    }
+
+    private void checkMedia(String label, String value, MediaKind expected, Map<UUID, MediaKind> known, List<String> errors) {
+        if (isBlank(value)) {
+            return;
+        }
+        UUID id = parseUuid(value);
+        if (id == null) {
+            errors.add(label + " '" + value + "' is not a media id");
+            return;
+        }
+        MediaKind actual = known.get(id);
+        if (actual == null) {
+            errors.add(label + " '" + value + "' does not exist in this organisation's media library");
+        } else if (actual != expected) {
+            errors.add(label + " needs a " + expected + " file, but media '" + value + "' is " + actual);
+        }
+    }
+
+    /** Every well-formed media id the document references, so the caller can look them up in one query. */
+    public static Set<UUID> referencedMediaIds(ExperienceDocument document) {
+        Set<UUID> ids = new HashSet<>();
+        for (SceneDocument scene : document.scenes()) {
+            for (BlockDocument block : scene.blocks()) {
+                addIfUuid(ids, block.mediaId());
+            }
+            for (RuleDocument rule : scene.rules()) {
+                if (rule.effects() == null) {
+                    continue;
+                }
+                for (RuleEffect effect : rule.effects()) {
+                    if (effect != null) {
+                        addIfUuid(ids, effect.media());
+                        addIfUuid(ids, effect.audio());
+                        addIfUuid(ids, effect.boxVideo());
+                        addIfUuid(ids, effect.url());
+                    }
+                }
+            }
+        }
+        return ids;
+    }
+
+    private static void addIfUuid(Set<UUID> ids, String value) {
+        UUID id = parseUuid(value);
+        if (id != null) {
+            ids.add(id);
+        }
+    }
+
+    private static UUID parseUuid(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
         } catch (IllegalArgumentException e) {
             return null;
         }

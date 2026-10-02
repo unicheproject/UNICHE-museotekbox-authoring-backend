@@ -2,9 +2,12 @@ package com.museotek.box.application.media;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
 import com.museotek.box.domain.media.Media;
+import com.museotek.box.domain.media.MediaInUseException;
 import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
+import com.museotek.box.infrastructure.repository.BlockRepository;
 import com.museotek.box.infrastructure.repository.MediaRepository;
+import com.museotek.box.infrastructure.repository.RuleRepository;
 import com.museotek.box.infrastructure.storage.MediaStorage;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -26,7 +29,10 @@ class DeleteMediaUseCaseTest {
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
     private final MediaRepository mediaRepository = mock(MediaRepository.class);
     private final MediaStorage mediaStorage = mock(MediaStorage.class);
-    private final DeleteMediaUseCase useCase = new DeleteMediaUseCase(orgAccessGuard, mediaRepository, mediaStorage);
+    private final BlockRepository blockRepository = mock(BlockRepository.class);
+    private final RuleRepository ruleRepository = mock(RuleRepository.class);
+    private final DeleteMediaUseCase useCase =
+            new DeleteMediaUseCase(orgAccessGuard, mediaRepository, mediaStorage, blockRepository, ruleRepository);
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID mediaId = UUID.randomUUID();
@@ -42,6 +48,25 @@ class DeleteMediaUseCaseTest {
         InOrder order = inOrder(mediaRepository, mediaStorage);
         order.verify(mediaRepository).delete(media);
         order.verify(mediaStorage).delete("stored.mp4");
+    }
+
+    @Test
+    void usedByABlock_isRefusedAndDeletesNothing() {
+        when(mediaRepository.findByIdAndOrgId(mediaId, orgId)).thenReturn(Optional.of(new Media()));
+        when(blockRepository.existsByMediaId(mediaId.toString())).thenReturn(true);
+
+        assertThatThrownBy(() -> useCase.execute(orgId, mediaId)).isInstanceOf(MediaInUseException.class);
+
+        verify(mediaRepository, never()).delete(any());
+        verifyNoInteractions(mediaStorage);
+    }
+
+    @Test
+    void usedByAReplyEffect_isRefused() {
+        when(mediaRepository.findByIdAndOrgId(mediaId, orgId)).thenReturn(Optional.of(new Media()));
+        when(ruleRepository.existsByEffectMediaId(mediaId.toString())).thenReturn(true);
+
+        assertThatThrownBy(() -> useCase.execute(orgId, mediaId)).isInstanceOf(MediaInUseException.class);
     }
 
     @Test

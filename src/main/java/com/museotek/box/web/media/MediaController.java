@@ -102,7 +102,8 @@ public class MediaController {
                 .body(content.file());
     }
 
-    @Operation(summary = "Delete a media item and its file")
+    @Operation(summary = "Delete a media item and its file",
+            description = "409 MEDIA_IN_USE while any experience still uses it.")
     @DeleteMapping("/{mediaId}")
     public ResponseEntity<Void> delete(@PathVariable UUID orgId, @PathVariable UUID mediaId) {
         deleteMediaUseCase.execute(orgId, mediaId);
