@@ -8,5 +8,6 @@
     <include file="sql/01-initial-schema.sql" relativeToChangelogFile="true"/>
     <include file="sql/02-scene-block-rule-schema.sql" relativeToChangelogFile="true"/>
     <include file="sql/03-experience-flow-and-rule-model.sql" relativeToChangelogFile="true"/>
+    <include file="sql/04-media-library.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
