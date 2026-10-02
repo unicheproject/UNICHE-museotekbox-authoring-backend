@@ -5,6 +5,11 @@ import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
+import com.museotek.box.domain.media.InvalidMediaUploadException;
+import com.museotek.box.domain.media.MediaNotFoundException;
+import com.museotek.box.domain.media.MediaTooLargeException;
+import com.museotek.box.domain.media.UnsupportedMediaFileException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
@@ -108,6 +113,31 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/project-not-in-box-org")
         void projectNotInBoxOrg() {
             throw new ProjectNotInBoxOrgException("Project 123 does not belong to org 456");
+        }
+
+        @GetMapping("/media-not-found")
+        void mediaNotFound() {
+            throw new MediaNotFoundException("No media 1 for org 2");
+        }
+
+        @GetMapping("/media-too-large")
+        void mediaTooLarge() {
+            throw new MediaTooLargeException("The file is 101 bytes; IMAGE files may be at most 100 bytes");
+        }
+
+        @GetMapping("/unsupported-media")
+        void unsupportedMedia() {
+            throw new UnsupportedMediaFileException("File type 'image/svg+xml' is not allowed");
+        }
+
+        @GetMapping("/invalid-upload")
+        void invalidUpload() {
+            throw new InvalidMediaUploadException("No file was uploaded, or the file is empty");
+        }
+
+        @GetMapping("/max-upload-size")
+        void maxUploadSize() {
+            throw new MaxUploadSizeExceededException(209715200L);
         }
 
         @GetMapping("/scan-object-type-in-use")
@@ -248,6 +278,42 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("PROJECT_NOT_IN_BOX_ORG"))
                 .andExpect(jsonPath("$.message").value("Project 123 does not belong to org 456"));
+    }
+
+    @Test
+    void mediaNotFoundException_mapsTo404() throws Exception {
+        mockMvc.perform(get("/test/media-not-found"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MEDIA_NOT_FOUND"));
+    }
+
+    @Test
+    void mediaTooLargeException_mapsTo413() throws Exception {
+        mockMvc.perform(get("/test/media-too-large"))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.code").value("MEDIA_TOO_LARGE"));
+    }
+
+    @Test
+    void springMaxUploadSize_mapsTo413WithoutLeakingDetails() throws Exception {
+        mockMvc.perform(get("/test/max-upload-size"))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.code").value("MEDIA_TOO_LARGE"))
+                .andExpect(jsonPath("$.message").value("The file is larger than the server accepts"));
+    }
+
+    @Test
+    void unsupportedMediaFileException_mapsTo415() throws Exception {
+        mockMvc.perform(get("/test/unsupported-media"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
+    }
+
+    @Test
+    void invalidMediaUploadException_mapsTo400() throws Exception {
+        mockMvc.perform(get("/test/invalid-upload"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_UPLOAD"));
     }
 
     @Test

@@ -5,6 +5,10 @@ import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
+import com.museotek.box.domain.media.InvalidMediaUploadException;
+import com.museotek.box.domain.media.MediaNotFoundException;
+import com.museotek.box.domain.media.MediaTooLargeException;
+import com.museotek.box.domain.media.UnsupportedMediaFileException;
 import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
@@ -27,6 +31,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
@@ -58,6 +65,47 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
     public ErrorEnvelope handleProjectNotInBoxOrg(ProjectNotInBoxOrgException e) {
         return new ErrorEnvelope("PROJECT_NOT_IN_BOX_ORG", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(MediaNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorEnvelope handleMediaNotFound(MediaNotFoundException e) {
+        return new ErrorEnvelope("MEDIA_NOT_FOUND", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler({InvalidMediaUploadException.class, MissingServletRequestPartException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleInvalidMediaUpload(Exception e) {
+        String message = e instanceof MissingServletRequestPartException
+                ? "The upload needs the file in a multipart field named 'file'"
+                : e.getMessage();
+        return new ErrorEnvelope("INVALID_UPLOAD", message, List.of(), requestId());
+    }
+
+    // Spring's own limit (spring.servlet.multipart.*), hit before our per-kind check can run.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    public ErrorEnvelope handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
+        return new ErrorEnvelope("MEDIA_TOO_LARGE", "The file is larger than the server accepts", List.of(), requestId());
+    }
+
+    // Not multipart at all, or a broken multipart body.
+    @ExceptionHandler(MultipartException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleMultipart(MultipartException e) {
+        return new ErrorEnvelope("INVALID_UPLOAD", "The request is not a valid multipart/form-data upload", List.of(), requestId());
+    }
+
+    @ExceptionHandler(MediaTooLargeException.class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    public ErrorEnvelope handleMediaTooLarge(MediaTooLargeException e) {
+        return new ErrorEnvelope("MEDIA_TOO_LARGE", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(UnsupportedMediaFileException.class)
+    @ResponseStatus(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+    public ErrorEnvelope handleUnsupportedMediaFile(UnsupportedMediaFileException e) {
+        return new ErrorEnvelope("UNSUPPORTED_MEDIA_TYPE", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(ScanObjectNotFoundException.class)
