@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * The write algorithm's steps 1-3 (see the document-model proposal doc): validate keys,
@@ -56,8 +57,17 @@ public class ExperienceDocumentValidator {
     private static final List<String> EFFECT_TYPES = List.of(
             EFFECT_REPLY, EFFECT_BOX_SCREEN, EFFECT_BOX_AUDIO, EFFECT_SET_NUMBER, EFFECT_ADD_NUMBER, EFFECT_SET_FLAG);
 
-    // Block types that show a media library item, and the kind of file each needs.
-    private static final Map<String, MediaKind> BLOCK_MEDIA_KINDS = Map.of("IMAGE", MediaKind.IMAGE, "VIDEO", MediaKind.VIDEO);
+    // Block types that show a media library item, and the kinds of file each accepts.
+    private static final Map<String, Set<MediaKind>> BLOCK_MEDIA_KINDS = Map.of(
+            "IMAGE", Set.of(MediaKind.IMAGE),
+            "ILLUSTRATION", Set.of(MediaKind.IMAGE),
+            "VIDEO", Set.of(MediaKind.VIDEO),
+            "SCREEN", Set.of(MediaKind.IMAGE, MediaKind.VIDEO),
+            "AUDIO", Set.of(MediaKind.AUDIO),
+            "BOX_VIDEO", Set.of(MediaKind.VIDEO));
+
+    // Blocks that need the screen; a Box-only experience has none ("Where does it play?" = BOX).
+    private static final Set<String> SCREEN_BLOCK_TYPES = Set.of("TEXT", "IMAGE", "ILLUSTRATION", "VIDEO", "SCREEN");
 
     // Flow schema versions this backend accepts. Bump together with the frontend's flow format.
     private static final Set<Integer> SUPPORTED_FLOW_SCHEMA_VERSIONS = Set.of(1);
@@ -70,6 +80,7 @@ public class ExperienceDocumentValidator {
         validateKeys(document, errors);
         validateGraph(document, errors);
         validateMediaReferences(document, context, errors);
+        validateBoxOnly(document, errors);
         validateFreshness(document, context, errors);
         return new ExperienceValidationResult(errors);
     }
@@ -201,6 +212,7 @@ public class ExperienceDocumentValidator {
             allSceneKeys.add(scene.sceneKey());
         }
         Map<String, VariableKind> declaredVariables = declaredVariables(document);
+        boolean hasScreen = !ExperienceOutput.BOX.name().equals(document.output());
 
         for (SceneDocument scene : document.scenes()) {
             // Of the rules whose trigger matches, the first by position runs - so a catch-all
@@ -221,7 +233,7 @@ public class ExperienceDocumentValidator {
                     }
                 }
                 validateCondition(rule.condition(), declaredVariables, label, errors);
-                validateEffects(rule.effects(), declaredVariables, label, errors);
+                validateEffects(rule.effects(), declaredVariables, hasScreen, label, errors);
                 validateDestination(rule.destination(), allSceneKeys, label, errors);
             }
         }
@@ -288,7 +300,7 @@ public class ExperienceDocumentValidator {
         }
     }
 
-    private void validateEffects(List<RuleEffect> effects, Map<String, VariableKind> declared, String label, List<String> errors) {
+    private void validateEffects(List<RuleEffect> effects, Map<String, VariableKind> declared, boolean hasScreen, String label, List<String> errors) {
         if (effects == null) {
             errors.add(label + " has no effects list (send [] for none)");
             return;
@@ -302,7 +314,8 @@ public class ExperienceDocumentValidator {
             }
             String type = effect.type();
             if (EFFECT_REPLY.equals(type)) {
-                if (isBlank(effect.color())) {
+                // The colour is the reply panel on the screen; a Box-only reply is just its sound.
+                if (hasScreen && isBlank(effect.color())) {
                     errors.add(effectLabel + " REPLY needs a color");
                 }
             } else if (EFFECT_BOX_SCREEN.equals(type)) {
@@ -388,7 +401,7 @@ public class ExperienceDocumentValidator {
         for (SceneDocument scene : document.scenes()) {
             for (BlockDocument block : scene.blocks()) {
                 String label = "block '" + block.blockKey() + "'";
-                MediaKind expected = BLOCK_MEDIA_KINDS.get(block.type());
+                Set<MediaKind> expected = BLOCK_MEDIA_KINDS.get(block.type());
                 if (expected == null) {
                     if (!isBlank(block.mediaId())) {
                         errors.add(label + " of type " + block.type() + " can't reference media");
@@ -407,16 +420,16 @@ public class ExperienceDocumentValidator {
                         continue;
                     }
                     String label = "rule '" + rule.ruleKey() + "' effect " + (i + 1);
-                    checkMedia(label + " media", effect.media(), MediaKind.IMAGE, known, errors);
-                    checkMedia(label + " audio", effect.audio(), MediaKind.AUDIO, known, errors);
-                    checkMedia(label + " boxVideo", effect.boxVideo(), MediaKind.VIDEO, known, errors);
-                    checkMedia(label + " url", effect.url(), MediaKind.AUDIO, known, errors);
+                    checkMedia(label + " media", effect.media(), Set.of(MediaKind.IMAGE), known, errors);
+                    checkMedia(label + " audio", effect.audio(), Set.of(MediaKind.AUDIO), known, errors);
+                    checkMedia(label + " boxVideo", effect.boxVideo(), Set.of(MediaKind.VIDEO), known, errors);
+                    checkMedia(label + " url", effect.url(), Set.of(MediaKind.AUDIO), known, errors);
                 }
             }
         }
     }
 
-    private void checkMedia(String label, String value, MediaKind expected, Map<UUID, MediaKind> known, List<String> errors) {
+    private void checkMedia(String label, String value, Set<MediaKind> expected, Map<UUID, MediaKind> known, List<String> errors) {
         if (isBlank(value)) {
             return;
         }
@@ -428,8 +441,40 @@ public class ExperienceDocumentValidator {
         MediaKind actual = known.get(id);
         if (actual == null) {
             errors.add(label + " '" + value + "' does not exist in this organisation's media library");
-        } else if (actual != expected) {
-            errors.add(label + " needs a " + expected + " file, but media '" + value + "' is " + actual);
+        } else if (!expected.contains(actual)) {
+            errors.add(label + " needs " + describeKinds(expected) + " file, but media '" + value + "' is " + actual);
+        }
+    }
+
+    private static String describeKinds(Set<MediaKind> kinds) {
+        return kinds.stream().map(Enum::name).sorted().collect(Collectors.joining(" or ", "a ", ""));
+    }
+
+    // "Box only" has no screen: nothing may need one, and replies are sounds (no colour panel,
+    // no picture). Checked only for a valid BOX output; an invalid output is reported elsewhere.
+    private void validateBoxOnly(ExperienceDocument document, List<String> errors) {
+        if (!ExperienceOutput.BOX.name().equals(document.output())) {
+            return;
+        }
+        for (SceneDocument scene : document.scenes()) {
+            for (BlockDocument block : scene.blocks()) {
+                if (SCREEN_BLOCK_TYPES.contains(block.type())) {
+                    errors.add("block '" + block.blockKey() + "' of type " + block.type()
+                            + " needs a screen, but this experience plays on the Box only");
+                }
+            }
+            for (RuleDocument rule : scene.rules()) {
+                if (rule.effects() == null) {
+                    continue;
+                }
+                for (int i = 0; i < rule.effects().size(); i++) {
+                    RuleEffect effect = rule.effects().get(i);
+                    if (effect != null && EFFECT_REPLY.equals(effect.type()) && !isBlank(effect.media())) {
+                        errors.add("rule '" + rule.ruleKey() + "' effect " + (i + 1)
+                                + " REPLY can't show a picture: this experience plays on the Box only");
+                    }
+                }
+            }
         }
     }
 

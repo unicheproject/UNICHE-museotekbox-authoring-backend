@@ -194,6 +194,82 @@ class ExperienceDocumentValidatorTest {
         assertThat(ExperienceDocumentValidator.referencedMediaIds(document)).containsExactlyInAnyOrder(image, sound);
     }
 
+
+    @Test
+    void newBlockTypes_acceptTheirKindsOfMedia() {
+        UUID picture = UUID.randomUUID();
+        UUID video = UUID.randomUUID();
+        UUID sound = UUID.randomUUID();
+        ExperienceWriteContext context = mediaContext(Map.of(picture, MediaKind.IMAGE, video, MediaKind.VIDEO, sound, MediaKind.AUDIO));
+        List<BlockDocument> blocks = List.of(
+                new BlockDocument("1", "ILLUSTRATION", 0, "{}", picture.toString()),
+                new BlockDocument("2", "SCREEN", 1, "{}", picture.toString()),
+                new BlockDocument("3", "SCREEN", 2, "{}", video.toString()),
+                new BlockDocument("4", "AUDIO", 3, "{}", sound.toString()),
+                new BlockDocument("5", "BOX_VIDEO", 4, "{}", video.toString()));
+        ExperienceDocument document = document(List.of(scene("1", true, blocks, List.of())));
+
+        ExperienceValidationResult result = validator.validate(document, context);
+
+        assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
+    void newBlockTypes_refuseTheWrongKind() {
+        UUID sound = UUID.randomUUID();
+        ExperienceWriteContext context = mediaContext(Map.of(sound, MediaKind.AUDIO));
+        List<BlockDocument> blocks = List.of(
+                new BlockDocument("1", "ILLUSTRATION", 0, "{}", sound.toString()),
+                new BlockDocument("2", "SCREEN", 1, "{}", sound.toString()));
+        ExperienceDocument document = document(List.of(scene("1", true, blocks, List.of())));
+
+        ExperienceValidationResult result = validator.validate(document, context);
+
+        assertThat(result.errors())
+                .anyMatch(e -> e.contains("block '1'") && e.contains("needs a IMAGE file"))
+                .anyMatch(e -> e.contains("block '2'") && e.contains("needs a IMAGE or VIDEO file"));
+    }
+
+    @Test
+    void boxOnly_refusesWhatNeedsAScreen() {
+        UUID picture = UUID.randomUUID();
+        ExperienceWriteContext context = mediaContext(Map.of(picture, MediaKind.IMAGE));
+        List<BlockDocument> blocks = List.of(
+                new BlockDocument("1", "TEXT", 0, "{}", null),
+                new BlockDocument("2", "IMAGE", 1, "{}", null),
+                new BlockDocument("3", "SCREEN", 2, "{}", null));
+        RuleEffect replyWithPicture = new RuleEffect("REPLY", null, null, null, null, null, picture.toString(), null, null, null);
+        RuleDocument rule = rule("1", 0, trigger("SCENE_ENTERED"), null, List.of(replyWithPicture), STAY);
+        ExperienceDocument document = new ExperienceDocument("BOX", VALID_FLOW, List.of(),
+                List.of(scene("1", true, blocks, List.of(rule))));
+
+        ExperienceValidationResult result = validator.validate(document, context);
+
+        assertThat(result.errors())
+                .anyMatch(e -> e.contains("block '1' of type TEXT needs a screen"))
+                .anyMatch(e -> e.contains("block '2' of type IMAGE needs a screen"))
+                .anyMatch(e -> e.contains("block '3' of type SCREEN needs a screen"))
+                .anyMatch(e -> e.contains("REPLY can't show a picture"));
+    }
+
+    @Test
+    void boxOnly_acceptsSoundsBoxVideoAndRepliesWithoutAColour() {
+        UUID sound = UUID.randomUUID();
+        UUID video = UUID.randomUUID();
+        ExperienceWriteContext context = mediaContext(Map.of(sound, MediaKind.AUDIO, video, MediaKind.VIDEO));
+        List<BlockDocument> blocks = List.of(
+                new BlockDocument("1", "AUDIO", 0, "{}", sound.toString()),
+                new BlockDocument("2", "BOX_VIDEO", 1, "{}", video.toString()));
+        RuleEffect spokenReply = new RuleEffect("REPLY", null, null, null, null, null, null, sound.toString(), null, null);
+        RuleDocument rule = rule("1", 0, trigger("SCENE_ENTERED"), null, List.of(spokenReply), STAY);
+        ExperienceDocument document = new ExperienceDocument("BOX", VALID_FLOW, List.of(),
+                List.of(scene("1", true, blocks, List.of(rule))));
+
+        ExperienceValidationResult result = validator.validate(document, context);
+
+        assertThat(result.errors()).isEmpty();
+    }
+
     private static ExperienceWriteContext mediaContext(Map<UUID, MediaKind> knownMedia) {
         return new ExperienceWriteContext(Set.of(), Set.of(), Set.of(), 1, 1, 1, null, knownMedia);
     }
