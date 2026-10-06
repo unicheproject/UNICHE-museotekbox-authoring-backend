@@ -27,6 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -284,6 +285,32 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("PROJECT_NOT_IN_BOX_ORG"))
                 .andExpect(jsonPath("$.message").value("Project 123 does not belong to org 456"));
+    }
+
+    @Test
+    void brokenJsonBody_mapsTo400WithItsLocationButNotItsContent() throws Exception {
+        mockMvc.perform(post("/test/validated")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\n  \"name\": secret-value-without-quotes\n}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("at line 2")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("secret"))));
+    }
+
+    @Test
+    void invalidUtf8Body_mapsTo400NotA500() throws Exception {
+        byte[] body = {'{', '"', 'n', 'a', 'm', 'e', '"', ':', '"', (byte) 0x80, '"', '}'};
+        mockMvc.perform(post("/test/validated").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+    }
+
+    @Test
+    void wrongShapeBody_mapsTo400() throws Exception {
+        mockMvc.perform(post("/test/validated").contentType(MediaType.APPLICATION_JSON).content("[1, 2, 3]"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
     }
 
     @Test

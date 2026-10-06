@@ -162,6 +162,7 @@ validation, δεν θα διαρρεύσει στο response.
 | `ExperienceValidationException` (`domain/experience/`) | 400 | `VALIDATION_ERROR` |
 | `MethodArgumentNotValidException` (bean validation) | 400 | `VALIDATION_ERROR` |
 | `MethodArgumentTypeMismatchException` (π.χ. μη-UUID path variable) | 400 | `INVALID_PARAMETER` |
+| `HttpMessageNotReadableException` (σπασμένο JSON, μη έγκυρο UTF-8, λάθος σχήμα body) | 400 | `MALFORMED_REQUEST` |
 | `MissingRequestHeaderException` (π.χ. απόν mandatory `If-Match`) | 400 | `MISSING_HEADER` |
 | `NoResourceFoundException` (Spring, καμία route δεν ταιριάζει) | 404 | `NOT_FOUND` |
 | οτιδήποτε άλλο (`Exception.class` catch-all) | 500 | `INTERNAL_ERROR` |

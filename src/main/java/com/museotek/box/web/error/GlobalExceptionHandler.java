@@ -1,5 +1,6 @@
 package com.museotek.box.web.error;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -200,6 +202,20 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .toList();
         return new ErrorEnvelope("VALIDATION_ERROR", "Invalid request", details, requestId());
+    }
+
+    // A request body that isn't valid JSON, isn't valid UTF-8, or can't be read into the expected
+    // shape (e.g. a string where an object is expected). Never echoes the body: only where the
+    // parser stopped, when it knows, so the client can find the problem.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleNotReadable(HttpMessageNotReadableException e) {
+        String message = "The request body is not valid JSON or doesn't have the expected shape";
+        if (e.getCause() instanceof JsonProcessingException parseError && parseError.getLocation() != null) {
+            message += " (at line " + parseError.getLocation().getLineNr()
+                    + ", column " + parseError.getLocation().getColumnNr() + ")";
+        }
+        return new ErrorEnvelope("MALFORMED_REQUEST", message, List.of(), requestId());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
