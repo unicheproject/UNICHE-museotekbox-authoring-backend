@@ -2,6 +2,8 @@ package com.museotek.box.web.error;
 
 import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.BoxNotFoundException;
+import com.museotek.box.domain.comment.CommentNotFoundException;
+import com.museotek.box.domain.comment.InvalidCommentException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
@@ -115,6 +117,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/project-not-in-box-org")
         void projectNotInBoxOrg() {
             throw new ProjectNotInBoxOrgException("Project 123 does not belong to org 456");
+        }
+
+        @GetMapping("/comment-not-found")
+        void commentNotFound() {
+            throw new CommentNotFoundException("No comment 1 on experience 2");
+        }
+
+        @GetMapping("/invalid-comment")
+        void invalidComment() {
+            throw new InvalidCommentException("Replies are one level deep");
         }
 
         @GetMapping("/media-in-use")
@@ -311,6 +323,20 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(post("/test/validated").contentType(MediaType.APPLICATION_JSON).content("[1, 2, 3]"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+    }
+
+    @Test
+    void commentNotFoundException_mapsTo404() throws Exception {
+        mockMvc.perform(get("/test/comment-not-found"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_NOT_FOUND"));
+    }
+
+    @Test
+    void invalidCommentException_mapsTo400() throws Exception {
+        mockMvc.perform(get("/test/invalid-comment"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_COMMENT"));
     }
 
     @Test

@@ -3,6 +3,8 @@ package com.museotek.box.web.error;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.BoxNotFoundException;
+import com.museotek.box.domain.comment.CommentNotFoundException;
+import com.museotek.box.domain.comment.InvalidCommentException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
@@ -68,6 +70,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
     public ErrorEnvelope handleProjectNotInBoxOrg(ProjectNotInBoxOrgException e) {
         return new ErrorEnvelope("PROJECT_NOT_IN_BOX_ORG", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(CommentNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorEnvelope handleCommentNotFound(CommentNotFoundException e) {
+        return new ErrorEnvelope("COMMENT_NOT_FOUND", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(InvalidCommentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleInvalidComment(InvalidCommentException e) {
+        return new ErrorEnvelope("INVALID_COMMENT", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(MediaInUseException.class)
