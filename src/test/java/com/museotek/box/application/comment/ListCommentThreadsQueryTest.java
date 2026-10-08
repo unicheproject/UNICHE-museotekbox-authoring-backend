@@ -63,8 +63,8 @@ class ListCommentThreadsQueryTest {
     }
 
     @Test
-    void since_countsAResolveAsActivity() {
-        threadB.setResolvedAt(T0.plusSeconds(90));
+    void since_countsAResolveOrReopenAsActivity() {
+        threadB.setStatusChangedAt(T0.plusSeconds(90));
         stubComments();
 
         assertThat(query.execute(projectId, null, null, T0.plusSeconds(60))).extracting(CommentThread::comment).containsExactly(threadB);

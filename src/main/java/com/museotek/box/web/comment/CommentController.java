@@ -4,16 +4,19 @@ import com.museotek.box.application.comment.AddCommentUseCase;
 import com.museotek.box.application.comment.AddReplyUseCase;
 import com.museotek.box.application.comment.CommentThread;
 import com.museotek.box.application.comment.ListCommentThreadsQuery;
+import com.museotek.box.application.comment.ResolveCommentUseCase;
 import com.museotek.box.domain.comment.Comment;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -41,18 +44,24 @@ public class CommentController {
     public record ReplyRequest(@NotBlank @Size(max = 2000) String body) {
     }
 
+    public record ResolveRequest(@NotNull Boolean resolved) {
+    }
+
     private final AddCommentUseCase addCommentUseCase;
     private final AddReplyUseCase addReplyUseCase;
     private final ListCommentThreadsQuery listCommentThreadsQuery;
+    private final ResolveCommentUseCase resolveCommentUseCase;
 
     public CommentController(
             AddCommentUseCase addCommentUseCase,
             AddReplyUseCase addReplyUseCase,
-            ListCommentThreadsQuery listCommentThreadsQuery
+            ListCommentThreadsQuery listCommentThreadsQuery,
+            ResolveCommentUseCase resolveCommentUseCase
     ) {
         this.addCommentUseCase = addCommentUseCase;
         this.addReplyUseCase = addReplyUseCase;
         this.listCommentThreadsQuery = listCommentThreadsQuery;
+        this.resolveCommentUseCase = resolveCommentUseCase;
     }
 
     @Operation(summary = "List the experience's comment threads, most recent activity first",
@@ -91,5 +100,16 @@ public class CommentController {
     ) {
         Comment reply = addReplyUseCase.execute(projectId, commentId, request.body());
         return ResponseEntity.status(HttpStatus.CREATED).body(CommentResponse.from(reply));
+    }
+
+    @Operation(summary = "Resolve or reopen a comment thread",
+            description = "{\"resolved\": true} resolves, false reopens. Only a thread's first comment. Asking for the "
+                    + "status it already has changes nothing.")
+    @PatchMapping("/{commentId}")
+    public CommentThreadResponse resolve(
+            @PathVariable UUID projectId, @PathVariable UUID commentId, @Valid @RequestBody ResolveRequest request
+    ) {
+        CommentThread thread = resolveCommentUseCase.execute(projectId, commentId, request.resolved());
+        return CommentThreadResponse.from(thread);
     }
 }

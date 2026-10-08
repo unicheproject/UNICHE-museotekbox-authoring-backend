@@ -68,7 +68,7 @@ class AddCommentAndReplyUseCaseTest {
 
         assertThat(reply.getParentId()).isEqualTo(threadId);
         assertThat(reply.getProjectId()).isEqualTo(projectId);
-        assertThat(reply.getAuthorName()).isEqualTo("Hlias T.");
+        assertThat(reply.getAuthorName()).isEqualTo("Salvador T.");
         assertThat(reply.getBody()).isEqualTo("Fixed, try again");
     }
 

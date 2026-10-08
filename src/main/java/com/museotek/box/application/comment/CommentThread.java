@@ -11,8 +11,8 @@ public record CommentThread(Comment comment, List<Comment> replies) {
     /** The latest thing that happened in the thread: the comment, a reply, or its resolve/reopen. */
     public Instant lastActivity() {
         Instant last = comment.getCreatedAt();
-        if (comment.getResolvedAt() != null && comment.getResolvedAt().isAfter(last)) {
-            last = comment.getResolvedAt();
+        if (comment.getStatusChangedAt() != null && comment.getStatusChangedAt().isAfter(last)) {
+            last = comment.getStatusChangedAt();
         }
         for (Comment reply : replies) {
             if (reply.getCreatedAt().isAfter(last)) {

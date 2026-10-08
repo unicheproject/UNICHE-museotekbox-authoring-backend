@@ -59,6 +59,10 @@ public class Comment {
     @Column
     private Instant resolvedAt;
 
+    // When the thread was last resolved or reopened; counts as activity for "anything new since".
+    @Column
+    private Instant statusChangedAt;
+
     @Column(nullable = false)
     private Instant createdAt;
 }

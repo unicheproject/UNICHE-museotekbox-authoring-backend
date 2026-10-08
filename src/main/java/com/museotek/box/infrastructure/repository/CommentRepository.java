@@ -12,4 +12,6 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
 
     // Scoped by construction: a comment id from another experience is simply not found.
     Optional<Comment> findByIdAndProjectId(UUID id, UUID projectId);
+
+    List<Comment> findByParentIdOrderByCreatedAtAsc(UUID parentId);
 }

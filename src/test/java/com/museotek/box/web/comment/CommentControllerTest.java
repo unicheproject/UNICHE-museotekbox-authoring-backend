@@ -2,7 +2,9 @@ package com.museotek.box.web.comment;
 
 import com.museotek.box.application.comment.AddCommentUseCase;
 import com.museotek.box.application.comment.AddReplyUseCase;
+import com.museotek.box.application.comment.CommentThread;
 import com.museotek.box.application.comment.ListCommentThreadsQuery;
+import com.museotek.box.application.comment.ResolveCommentUseCase;
 import com.museotek.box.domain.comment.Comment;
 import com.museotek.box.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,9 +33,10 @@ class CommentControllerTest {
     private final AddCommentUseCase addCommentUseCase = mock(AddCommentUseCase.class);
     private final AddReplyUseCase addReplyUseCase = mock(AddReplyUseCase.class);
     private final ListCommentThreadsQuery listCommentThreadsQuery = mock(ListCommentThreadsQuery.class);
+    private final ResolveCommentUseCase resolveCommentUseCase = mock(ResolveCommentUseCase.class);
 
     private final MockMvc mockMvc = MockMvcBuilders
-            .standaloneSetup(new CommentController(addCommentUseCase, addReplyUseCase, listCommentThreadsQuery))
+            .standaloneSetup(new CommentController(addCommentUseCase, addReplyUseCase, listCommentThreadsQuery, resolveCommentUseCase))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
@@ -94,6 +98,30 @@ class CommentControllerTest {
                 .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
 
         verifyNoInteractions(listCommentThreadsQuery);
+    }
+
+    @Test
+    void resolve_answers200WithTheThread() throws Exception {
+        UUID threadId = UUID.randomUUID();
+        Comment comment = comment(null, "The red card does nothing here");
+        comment.setResolved(true);
+        comment.setResolvedBy("Salvador T.");
+        when(resolveCommentUseCase.execute(projectId, threadId, true)).thenReturn(new CommentThread(comment, java.util.List.of()));
+
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/comments/{commentId}", projectId, threadId)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"resolved\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resolved").value(true))
+                .andExpect(jsonPath("$.resolvedBy").value("Salvador T."));
+    }
+
+    @Test
+    void resolve_withoutResolvedField_is400() throws Exception {
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/comments/{commentId}", projectId, UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(resolveCommentUseCase);
     }
 
     private Comment comment(UUID parentId, String body) {
