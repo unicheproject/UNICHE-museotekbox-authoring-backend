@@ -15,7 +15,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * An experience's comment threads, most recent activity first. Filters, all optional:
+ * An experience's comment threads: open ones first, then resolved ones (US-56), each group oldest
+ * first, like reading a conversation. The order doesn't move when someone replies. Filters, all
+ * optional:
  * <ul>
  *   <li>{@code sceneKey}: only threads on that screen;</li>
  *   <li>{@code status}: {@code open}, {@code resolved} or {@code all} (default);</li>
@@ -57,7 +59,9 @@ public class ListCommentThreadsQuery {
                 threads.add(thread);
             }
         }
-        threads.sort(Comparator.comparing(CommentThread::lastActivity).reversed());
+        threads.sort(Comparator
+                .comparing((CommentThread thread) -> thread.comment().isResolved())
+                .thenComparing(thread -> thread.comment().getCreatedAt()));
         return threads;
     }
 

@@ -33,7 +33,21 @@ class ListCommentThreadsQueryTest {
     private final Comment threadB = thread("2", true, T0.plusSeconds(10));
 
     @Test
-    void groupsRepliesUnderTheirThread_mostRecentActivityFirst() {
+    void openThreadsFirst_thenResolved_eachOldestFirst_andRepliesDontReorder() {
+        Comment olderOpen = thread("1", false, T0.plusSeconds(1));
+        Comment newerOpen = thread("1", false, T0.plusSeconds(5));
+        Comment oldestResolved = thread("1", true, T0);
+        Comment lateReplyToOlder = reply(olderOpen, T0.plusSeconds(99));
+        when(commentRepository.findByProjectIdOrderByCreatedAtAsc(projectId))
+                .thenReturn(List.of(oldestResolved, olderOpen, newerOpen, lateReplyToOlder));
+
+        List<CommentThread> threads = query.execute(projectId, null, null, null);
+
+        assertThat(threads).extracting(CommentThread::comment).containsExactly(olderOpen, newerOpen, oldestResolved);
+    }
+
+    @Test
+    void groupsRepliesUnderTheirThread() {
         stubComments();
 
         List<CommentThread> threads = query.execute(projectId, null, null, null);

@@ -64,7 +64,7 @@ public class CommentController {
         this.resolveCommentUseCase = resolveCommentUseCase;
     }
 
-    @Operation(summary = "List the experience's comment threads, most recent activity first",
+    @Operation(summary = "List the experience's comment threads: open first, then resolved, each oldest first",
             description = "Optional filters: scene (a scene key), status (open, resolved or all), since (an ISO "
                     + "timestamp: only threads with something new after it, for refreshing every few seconds).")
     @GetMapping
