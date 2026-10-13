@@ -3,6 +3,8 @@ package com.museotek.box.web.error;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.BoxNotFoundException;
+import com.museotek.box.domain.comment.CommentDeleteForbiddenException;
+import com.museotek.box.domain.comment.CommentHasRepliesException;
 import com.museotek.box.domain.comment.CommentNotFoundException;
 import com.museotek.box.domain.comment.InvalidCommentException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
@@ -82,6 +84,19 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorEnvelope handleInvalidComment(InvalidCommentException e) {
         return new ErrorEnvelope("INVALID_COMMENT", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(CommentHasRepliesException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorEnvelope handleCommentHasReplies(CommentHasRepliesException e) {
+        return new ErrorEnvelope("COMMENT_HAS_REPLIES", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(CommentDeleteForbiddenException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorEnvelope handleCommentDeleteForbidden(CommentDeleteForbiddenException e) {
+        log.warn("Forbidden: {}", e.getMessage());
+        return new ErrorEnvelope("FORBIDDEN", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(MediaInUseException.class)

@@ -3,6 +3,7 @@ package com.museotek.box.web.comment;
 import com.museotek.box.application.comment.AddCommentUseCase;
 import com.museotek.box.application.comment.AddReplyUseCase;
 import com.museotek.box.application.comment.CommentThread;
+import com.museotek.box.application.comment.DeleteCommentUseCase;
 import com.museotek.box.application.comment.ListCommentThreadsQuery;
 import com.museotek.box.application.comment.ResolveCommentUseCase;
 import com.museotek.box.domain.comment.Comment;
@@ -15,6 +16,7 @@ import jakarta.validation.constraints.Size;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,17 +53,20 @@ public class CommentController {
     private final AddReplyUseCase addReplyUseCase;
     private final ListCommentThreadsQuery listCommentThreadsQuery;
     private final ResolveCommentUseCase resolveCommentUseCase;
+    private final DeleteCommentUseCase deleteCommentUseCase;
 
     public CommentController(
             AddCommentUseCase addCommentUseCase,
             AddReplyUseCase addReplyUseCase,
             ListCommentThreadsQuery listCommentThreadsQuery,
-            ResolveCommentUseCase resolveCommentUseCase
+            ResolveCommentUseCase resolveCommentUseCase,
+            DeleteCommentUseCase deleteCommentUseCase
     ) {
         this.addCommentUseCase = addCommentUseCase;
         this.addReplyUseCase = addReplyUseCase;
         this.listCommentThreadsQuery = listCommentThreadsQuery;
         this.resolveCommentUseCase = resolveCommentUseCase;
+        this.deleteCommentUseCase = deleteCommentUseCase;
     }
 
     @Operation(summary = "List the experience's comment threads: open first, then resolved, each oldest first",
@@ -111,5 +116,15 @@ public class CommentController {
     ) {
         CommentThread thread = resolveCommentUseCase.execute(projectId, commentId, request.resolved());
         return CommentThreadResponse.from(thread);
+    }
+
+    @Operation(summary = "Delete a comment",
+            description = "The author can delete their own reply, or their own thread start while it has no replies "
+                    + "(409 otherwise). A manager of the organisation can delete any comment; deleting a thread start "
+                    + "deletes its replies too. Deletions don't show up in the list's since refresh.")
+    @DeleteMapping("/{commentId}")
+    public ResponseEntity<Void> delete(@PathVariable UUID projectId, @PathVariable UUID commentId) {
+        deleteCommentUseCase.execute(projectId, commentId);
+        return ResponseEntity.noContent().build();
     }
 }

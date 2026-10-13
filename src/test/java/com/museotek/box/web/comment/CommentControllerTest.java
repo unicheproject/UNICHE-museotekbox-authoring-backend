@@ -3,9 +3,12 @@ package com.museotek.box.web.comment;
 import com.museotek.box.application.comment.AddCommentUseCase;
 import com.museotek.box.application.comment.AddReplyUseCase;
 import com.museotek.box.application.comment.CommentThread;
+import com.museotek.box.application.comment.DeleteCommentUseCase;
 import com.museotek.box.application.comment.ListCommentThreadsQuery;
 import com.museotek.box.application.comment.ResolveCommentUseCase;
 import com.museotek.box.domain.comment.Comment;
+import com.museotek.box.domain.comment.CommentDeleteForbiddenException;
+import com.museotek.box.domain.comment.CommentHasRepliesException;
 import com.museotek.box.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -17,10 +20,12 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -34,9 +39,10 @@ class CommentControllerTest {
     private final AddReplyUseCase addReplyUseCase = mock(AddReplyUseCase.class);
     private final ListCommentThreadsQuery listCommentThreadsQuery = mock(ListCommentThreadsQuery.class);
     private final ResolveCommentUseCase resolveCommentUseCase = mock(ResolveCommentUseCase.class);
+    private final DeleteCommentUseCase deleteCommentUseCase = mock(DeleteCommentUseCase.class);
 
     private final MockMvc mockMvc = MockMvcBuilders
-            .standaloneSetup(new CommentController(addCommentUseCase, addReplyUseCase, listCommentThreadsQuery, resolveCommentUseCase))
+            .standaloneSetup(new CommentController(addCommentUseCase, addReplyUseCase, listCommentThreadsQuery, resolveCommentUseCase, deleteCommentUseCase))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
@@ -122,6 +128,36 @@ class CommentControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(resolveCommentUseCase);
+    }
+
+    @Test
+    void delete_answers204() throws Exception {
+        UUID commentId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/v1/projects/{projectId}/comments/{commentId}", projectId, commentId))
+                .andExpect(status().isNoContent());
+
+        verify(deleteCommentUseCase).execute(projectId, commentId);
+    }
+
+    @Test
+    void delete_threadWithReplies_is409() throws Exception {
+        UUID commentId = UUID.randomUUID();
+        doThrow(new CommentHasRepliesException("has replies")).when(deleteCommentUseCase).execute(projectId, commentId);
+
+        mockMvc.perform(delete("/api/v1/projects/{projectId}/comments/{commentId}", projectId, commentId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("COMMENT_HAS_REPLIES"));
+    }
+
+    @Test
+    void delete_someoneElsesComment_is403() throws Exception {
+        UUID commentId = UUID.randomUUID();
+        doThrow(new CommentDeleteForbiddenException("not yours")).when(deleteCommentUseCase).execute(projectId, commentId);
+
+        mockMvc.perform(delete("/api/v1/projects/{projectId}/comments/{commentId}", projectId, commentId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     private Comment comment(UUID parentId, String body) {
