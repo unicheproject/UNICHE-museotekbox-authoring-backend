@@ -8,6 +8,8 @@ import com.museotek.box.domain.comment.CommentHasRepliesException;
 import com.museotek.box.domain.comment.CommentNotFoundException;
 import com.museotek.box.domain.comment.InvalidCommentException;
 import com.museotek.box.domain.box.DuplicateSerialNumberException;
+import com.museotek.box.domain.box.ExperienceNotReadyException;
+import com.museotek.box.domain.box.StartCardInUseException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
@@ -72,6 +74,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
     public ErrorEnvelope handleProjectNotInBoxOrg(ProjectNotInBoxOrgException e) {
         return new ErrorEnvelope("PROJECT_NOT_IN_BOX_ORG", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(ExperienceNotReadyException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ErrorEnvelope handleExperienceNotReady(ExperienceNotReadyException e) {
+        return new ErrorEnvelope("EXPERIENCE_NOT_READY", e.getMessage(), e.getGaps(), requestId());
+    }
+
+    @ExceptionHandler(StartCardInUseException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorEnvelope handleStartCardInUse(StartCardInUseException e) {
+        return new ErrorEnvelope("START_CARD_IN_USE", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(CommentNotFoundException.class)

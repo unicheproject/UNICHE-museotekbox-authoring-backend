@@ -1,5 +1,6 @@
 package com.museotek.box.application.experience;
 
+import com.museotek.box.application.box.BoxStartCards;
 import com.museotek.box.application.experience.ExperienceDocument.BlockDocument;
 import com.museotek.box.application.experience.ExperienceDocument.DestinationDocument;
 import com.museotek.box.application.experience.ExperienceDocument.FlowDocument;
@@ -24,6 +25,7 @@ import com.museotek.box.domain.rule.Rule;
 import com.museotek.box.domain.rule.RuleDestination;
 import com.museotek.box.domain.rule.RuleEffect;
 import com.museotek.box.domain.rule.RuleTrigger;
+import com.museotek.box.domain.box.StartCardInUseException;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.domain.scene.Scene;
@@ -51,7 +53,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -70,10 +74,12 @@ class SaveExperienceUseCaseTest {
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final ScanObjectSupport scanObjectSupport = new ScanObjectSupport(scanObjectRepository, scanObjectTypeRepository);
     private final ExperienceDocumentValidator validator = new ExperienceDocumentValidator();
+    private final BoxStartCards boxStartCards = mock(BoxStartCards.class);
 
     private final SaveExperienceUseCase useCase = new SaveExperienceUseCase(
             projectAccessGuard, projectRepository, sceneRepository, blockRepository, ruleRepository,
-            experienceFlowRepository, experienceVariableRepository, mediaRepository, scanObjectSupport, validator);
+            experienceFlowRepository, experienceVariableRepository, mediaRepository, scanObjectSupport, validator,
+            boxStartCards);
 
     private static final FlowDocument FLOW = new FlowDocument(1, "{\"details\":{},\"islands\":[]}");
 
@@ -113,6 +119,20 @@ class SaveExperienceUseCaseTest {
         ArgumentCaptor<Project> savedProject = ArgumentCaptor.forClass(Project.class);
         verify(projectRepository).save(savedProject.capture());
         assertThat(savedProject.getValue().getDocVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void startCardTakenOnAnAssignedBox_isRefusedBeforeAnythingIsWritten() {
+        Project project = project(0, 1, 1, 1);
+        stubAccessAndEmptyProject(project);
+        doThrow(new StartCardInUseException("taken")).when(boxStartCards).requireFreeOnAssignedBoxes(projectId, 7L);
+        SceneDocument scene = new SceneDocument("1", "Start", 0, true, 7L, List.of(), List.of());
+
+        assertThatThrownBy(() -> useCase.execute(projectId, 0, document(List.of(scene))))
+                .isInstanceOf(StartCardInUseException.class);
+
+        verify(sceneRepository, never()).save(any());
+        verify(projectRepository, never()).save(any());
     }
 
     @Test
