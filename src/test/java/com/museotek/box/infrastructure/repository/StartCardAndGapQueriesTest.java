@@ -60,6 +60,8 @@ class StartCardAndGapQueriesTest {
                 .containsExactly("Hall A");
         assertThat(boxRepository.findBoxNamesWhereStartCardIsTaken(elsewhere.getId(), red.getId()))
                 .isEmpty();
+        assertThat(boxRepository.findNamesByAssignedProjectId(quiz.getId())).containsExactly("Hall A");
+        assertThat(boxRepository.findNamesByAssignedProjectId(project("Unpublished", red, null).getId())).isEmpty();
     }
 
     @Test

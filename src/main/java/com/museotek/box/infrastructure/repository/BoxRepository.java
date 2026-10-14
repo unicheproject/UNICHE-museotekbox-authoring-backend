@@ -23,6 +23,9 @@ public interface BoxRepository extends JpaRepository<Box, Long> {
     @Query("select p.id from Box b join b.assignedProjects p where b.id = :boxId")
     List<UUID> findAssignedProjectIds(@Param("boxId") Long boxId);
 
+    @Query("select b.name from Box b join b.assignedProjects p where p.id = :projectId")
+    List<String> findNamesByAssignedProjectId(@Param("projectId") UUID projectId);
+
     // Names of the other experiences on this box whose start scene uses this card.
     @Query("""
             select p.name from Box b join b.assignedProjects p, Scene s

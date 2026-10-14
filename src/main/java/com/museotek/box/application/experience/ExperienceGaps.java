@@ -20,7 +20,8 @@ import java.util.stream.Collectors;
 
 /**
  * What a saved experience still misses before a Box can run it: the choices a curator may leave
- * open while editing (a save accepts them) but which must be made before it is assigned to a Box.
+ * open while editing (a save accepts them) but which must be made before it is assigned to a Box,
+ * and kept while it is (see PublishedExperienceCheck).
  * The frontend shows its own to-fix banner; this is the backend's last check, so a Box never gets
  * an experience it can't play.
  * <ul>

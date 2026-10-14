@@ -5,6 +5,7 @@ import com.museotek.box.application.experience.ExperienceDocument.RuleDocument;
 import com.museotek.box.application.experience.ExperienceDocument.SceneDocument;
 import com.museotek.box.application.experience.ExperienceDocument.VariableDocument;
 import com.museotek.box.application.box.BoxStartCards;
+import com.museotek.box.application.box.PublishedExperienceCheck;
 import com.museotek.box.application.projectaccess.ProjectAccessGuard;
 import com.museotek.box.application.scanobject.ScanObjectSupport;
 import com.museotek.box.domain.block.Block;
@@ -65,6 +66,7 @@ public class SaveExperienceUseCase {
     private final ScanObjectSupport scanObjectSupport;
     private final ExperienceDocumentValidator validator;
     private final BoxStartCards boxStartCards;
+    private final PublishedExperienceCheck publishedExperienceCheck;
 
     public SaveExperienceUseCase(
             ProjectAccessGuard projectAccessGuard,
@@ -77,7 +79,8 @@ public class SaveExperienceUseCase {
             MediaRepository mediaRepository,
             ScanObjectSupport scanObjectSupport,
             ExperienceDocumentValidator validator,
-            BoxStartCards boxStartCards
+            BoxStartCards boxStartCards,
+            PublishedExperienceCheck publishedExperienceCheck
     ) {
         this.projectAccessGuard = projectAccessGuard;
         this.projectRepository = projectRepository;
@@ -90,6 +93,7 @@ public class SaveExperienceUseCase {
         this.scanObjectSupport = scanObjectSupport;
         this.validator = validator;
         this.boxStartCards = boxStartCards;
+        this.publishedExperienceCheck = publishedExperienceCheck;
     }
 
     @Transactional
@@ -161,10 +165,14 @@ public class SaveExperienceUseCase {
         project.setDocVersion(project.getDocVersion() + 1);
         project = projectRepository.save(project);
 
+        // Reads the rows just written, so they must reach the database first.
+        projectRepository.flush();
+        publishedExperienceCheck.requireNoGapsIfPublished(projectId);
+
         return buildView(project, savedFlow, savedVariables, savedScenes, savedBlocks, savedRules);
     }
 
-    // Only matters once the experience is on a Box; a missing start card is a gap, checked on assign.
+    // Only matters once the experience is on a Box. A missing start card is a gap instead (PublishedExperienceCheck).
     private void requireStartCardFreeOnAssignedBoxes(UUID projectId, ExperienceDocument document) {
         for (SceneDocument scene : document.scenes()) {
             if (scene.isStart() && scene.initCardTypeId() != null) {
