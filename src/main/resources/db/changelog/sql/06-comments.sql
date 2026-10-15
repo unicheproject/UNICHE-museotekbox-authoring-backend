@@ -28,3 +28,9 @@ CREATE INDEX ix_comments_parent ON comments (parent_id);
 ALTER TABLE comments
     ADD COLUMN status_changed_at TIMESTAMP(6) WITH TIME ZONE;
 --rollback ALTER TABLE comments DROP COLUMN status_changed_at;
+
+--changeset museotekbox:0024-add-comment-reply-deleted-at
+--comment When a reply in a thread was last deleted, so the frontend's "anything new since" refresh sends the thread again without that reply
+ALTER TABLE comments
+    ADD COLUMN reply_deleted_at TIMESTAMP(6) WITH TIME ZONE;
+--rollback ALTER TABLE comments DROP COLUMN reply_deleted_at;

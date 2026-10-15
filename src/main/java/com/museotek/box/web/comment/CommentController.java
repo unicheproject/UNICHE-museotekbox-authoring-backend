@@ -121,7 +121,8 @@ public class CommentController {
     @Operation(summary = "Delete a comment",
             description = "The author can delete their own reply, or their own thread start while it has no replies "
                     + "(409 otherwise). A manager of the organisation can delete any comment; deleting a thread start "
-                    + "deletes its replies too. Deletions don't show up in the list's since refresh.")
+                    + "deletes its replies too. After a reply is deleted, the list's since refresh sends its thread again "
+                    + "without it; a deleted thread start doesn't show up there.")
     @DeleteMapping("/{commentId}")
     public ResponseEntity<Void> delete(@PathVariable UUID projectId, @PathVariable UUID commentId) {
         deleteCommentUseCase.execute(projectId, commentId);

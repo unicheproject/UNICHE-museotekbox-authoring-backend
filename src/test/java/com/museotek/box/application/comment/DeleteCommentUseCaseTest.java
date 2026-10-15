@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
@@ -52,6 +53,21 @@ class DeleteCommentUseCaseTest {
 
         useCase.execute(projectId, reply.getId());
 
+        verify(commentRepository).delete(reply);
+    }
+
+    @Test
+    void deletingAReply_marksItsThreadAsChanged() {
+        Comment start = comment(null, "user-1");
+        Comment reply = comment(start.getId(), "user-2");
+        stub(start);
+        stub(reply);
+        callerIs("user-2", false, List.of());
+
+        useCase.execute(projectId, reply.getId());
+
+        assertThat(start.getReplyDeletedAt()).isNotNull();
+        verify(commentRepository).save(start);
         verify(commentRepository).delete(reply);
     }
 

@@ -63,6 +63,10 @@ public class Comment {
     @Column
     private Instant statusChangedAt;
 
+    // Thread starts only: when a reply was last deleted; also counts as activity for "anything new since".
+    @Column
+    private Instant replyDeletedAt;
+
     @Column(nullable = false)
     private Instant createdAt;
 }

@@ -12,6 +12,7 @@ import com.museotek.box.infrastructure.repository.CommentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +24,8 @@ import java.util.UUID;
  *   <li>a manager of the experience's org, or a platform admin: any comment, for moderation (e.g.
  *       a pasted password). Deleting a thread's first comment deletes its replies with it.</li>
  * </ul>
+ * Deleting a reply marks its thread as changed, so the list's {@code since} refresh sends the
+ * thread again without it. A deleted thread start isn't reported there: it's gone.
  */
 @Service
 public class DeleteCommentUseCase {
@@ -57,7 +60,12 @@ public class DeleteCommentUseCase {
             throw new CommentDeleteForbiddenException("Only the author or a manager of the organisation can delete comment " + commentId);
         }
 
-        if (comment.getParentId() == null) {
+        if (comment.getParentId() != null) {
+            commentRepository.findByIdAndProjectId(comment.getParentId(), projectId).ifPresent(start -> {
+                start.setReplyDeletedAt(Instant.now());
+                commentRepository.save(start);
+            });
+        } else {
             List<Comment> replies = commentRepository.findByParentIdOrderByCreatedAtAsc(comment.getId());
             if (!replies.isEmpty()) {
                 if (!manager) {

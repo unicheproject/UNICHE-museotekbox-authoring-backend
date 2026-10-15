@@ -85,6 +85,14 @@ class ListCommentThreadsQueryTest {
     }
 
     @Test
+    void since_countsADeletedReplyAsActivity() {
+        threadB.setReplyDeletedAt(T0.plusSeconds(90));
+        stubComments();
+
+        assertThat(query.execute(projectId, null, null, T0.plusSeconds(60))).extracting(CommentThread::comment).containsExactly(threadB);
+    }
+
+    @Test
     void unknownStatus_isRefusedBeforeAnyLookup() {
         assertThatThrownBy(() -> query.execute(projectId, null, "closed", null)).isInstanceOf(InvalidCommentException.class);
 
