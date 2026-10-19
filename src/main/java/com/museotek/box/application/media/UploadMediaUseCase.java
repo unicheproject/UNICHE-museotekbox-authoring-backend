@@ -25,8 +25,10 @@ import java.util.stream.Collectors;
  * Adds one file to an organisation's media library. Any member who can reach the org may upload:
  * authors build experiences, so they need their own pictures and sounds.
  *
- * <p>Checks, in order: access, not empty, allowed type, within its kind's size limit, and the
- * file's first bytes really are that type. Then the file is written and its row saved; if the
+ * <p>The name shown in the picker is the one given, or else the file's own name.
+ *
+ * <p>Checks, in order: access, a valid name if one is given, not empty, allowed type, within its
+ * kind's size limit, and the file's first bytes really are that type. Then the file is written and its row saved; if the
  * row fails, the file is removed again so no orphan is left on disk.
  */
 @Service
@@ -40,8 +42,6 @@ public class UploadMediaUseCase {
             "audio/wav", ".wav",
             "audio/ogg", ".ogg",
             "video/mp4", ".mp4");
-
-    private static final int MAX_NAME_LENGTH = 255;
 
     private final OrgAccessGuard orgAccessGuard;
     private final MediaRepository mediaRepository;
@@ -60,8 +60,11 @@ public class UploadMediaUseCase {
         this.mediaProperties = mediaProperties;
     }
 
-    public Media execute(UUID orgId, String originalFilename, String contentType, long sizeBytes, InputStream content) {
+    public Media execute(
+            UUID orgId, String originalFilename, String name, String contentType, long sizeBytes, InputStream content
+    ) {
         orgAccessGuard.requireAccess(orgId);
+        String shownName = name == null || name.isBlank() ? displayName(originalFilename) : MediaNames.requireValid(name);
 
         if (sizeBytes <= 0) {
             throw new InvalidMediaUploadException("No file was uploaded, or the file is empty");
@@ -88,7 +91,7 @@ public class UploadMediaUseCase {
             media.setId(UUID.randomUUID());
             media.setOrgId(orgId);
             media.setKind(kind);
-            media.setName(displayName(originalFilename));
+            media.setName(shownName);
             media.setContentType(contentType);
             media.setSizeBytes(sizeBytes);
             media.setStoredFilename(storedFilename);
@@ -129,8 +132,8 @@ public class UploadMediaUseCase {
         if (name.isEmpty()) {
             return "upload";
         }
-        if (name.length() > MAX_NAME_LENGTH) {
-            return name.substring(0, MAX_NAME_LENGTH);
+        if (name.length() > MediaNames.MAX_LENGTH) {
+            return name.substring(0, MediaNames.MAX_LENGTH);
         }
         return name;
     }

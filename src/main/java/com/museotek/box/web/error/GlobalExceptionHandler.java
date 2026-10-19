@@ -12,6 +12,7 @@ import com.museotek.box.domain.box.ExperienceNotReadyException;
 import com.museotek.box.domain.box.StartCardInUseException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
+import com.museotek.box.domain.media.InvalidMediaNameException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
 import com.museotek.box.domain.media.MediaInUseException;
 import com.museotek.box.domain.media.MediaNotFoundException;
@@ -123,6 +124,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorEnvelope handleMediaNotFound(MediaNotFoundException e) {
         return new ErrorEnvelope("MEDIA_NOT_FOUND", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(InvalidMediaNameException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleInvalidMediaName(InvalidMediaNameException e) {
+        return new ErrorEnvelope("INVALID_MEDIA_NAME", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler({InvalidMediaUploadException.class, MissingServletRequestPartException.class})

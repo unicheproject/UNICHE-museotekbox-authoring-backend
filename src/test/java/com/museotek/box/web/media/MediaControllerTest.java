@@ -2,14 +2,18 @@ package com.museotek.box.web.media;
 
 import com.museotek.box.application.media.DeleteMediaUseCase;
 import com.museotek.box.application.media.GetMediaContentQuery;
+import com.museotek.box.application.media.GetMediaQuery;
 import com.museotek.box.application.media.ListMediaQuery;
+import com.museotek.box.application.media.RenameMediaUseCase;
 import com.museotek.box.application.media.UploadMediaUseCase;
+import com.museotek.box.domain.media.InvalidMediaNameException;
 import com.museotek.box.domain.media.Media;
 import com.museotek.box.domain.media.MediaKind;
 import com.museotek.box.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -21,12 +25,14 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -37,11 +43,14 @@ class MediaControllerTest {
 
     private final UploadMediaUseCase uploadMediaUseCase = mock(UploadMediaUseCase.class);
     private final ListMediaQuery listMediaQuery = mock(ListMediaQuery.class);
+    private final GetMediaQuery getMediaQuery = mock(GetMediaQuery.class);
     private final GetMediaContentQuery getMediaContentQuery = mock(GetMediaContentQuery.class);
+    private final RenameMediaUseCase renameMediaUseCase = mock(RenameMediaUseCase.class);
     private final DeleteMediaUseCase deleteMediaUseCase = mock(DeleteMediaUseCase.class);
 
     private final MockMvc mockMvc = MockMvcBuilders
-            .standaloneSetup(new MediaController(uploadMediaUseCase, listMediaQuery, getMediaContentQuery, deleteMediaUseCase))
+            .standaloneSetup(new MediaController(
+                    uploadMediaUseCase, listMediaQuery, getMediaQuery, getMediaContentQuery, renameMediaUseCase, deleteMediaUseCase))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
@@ -50,7 +59,7 @@ class MediaControllerTest {
 
     @Test
     void upload_bindsTheFilePart_andAnswers201WithContentUrl() throws Exception {
-        when(uploadMediaUseCase.execute(eq(orgId), eq("vase.png"), eq("image/png"), anyLong(), any(InputStream.class)))
+        when(uploadMediaUseCase.execute(eq(orgId), eq("vase.png"), isNull(), eq("image/png"), anyLong(), any(InputStream.class)))
                 .thenReturn(media("image/png", "vase.png"));
         MockMultipartFile file = new MockMultipartFile("file", "vase.png", "image/png", new byte[]{1, 2, 3});
 
@@ -59,6 +68,17 @@ class MediaControllerTest {
                 .andExpect(jsonPath("$.id").value(mediaId.toString()))
                 .andExpect(jsonPath("$.kind").value("IMAGE"))
                 .andExpect(jsonPath("$.contentUrl").value("/api/v1/organisations/" + orgId + "/media/" + mediaId + "/content"));
+    }
+
+    @Test
+    void upload_passesTheOptionalName() throws Exception {
+        when(uploadMediaUseCase.execute(eq(orgId), eq("IMG_0042.png"), eq("Vase"), eq("image/png"), anyLong(), any(InputStream.class)))
+                .thenReturn(media("image/png", "Vase"));
+        MockMultipartFile file = new MockMultipartFile("file", "IMG_0042.png", "image/png", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/v1/organisations/{orgId}/media", orgId).file(file).param("name", "Vase"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Vase"));
     }
 
     @Test
@@ -88,6 +108,38 @@ class MediaControllerTest {
                 .andExpect(status().isPartialContent())
                 .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 2-5/10"))
                 .andExpect(content().string("cdef"));
+    }
+
+    @Test
+    void get_answersTheDetails() throws Exception {
+        when(getMediaQuery.execute(orgId, mediaId)).thenReturn(media("image/png", "vase.png"));
+
+        mockMvc.perform(get("/api/v1/organisations/{orgId}/media/{mediaId}", orgId, mediaId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("vase.png"))
+                .andExpect(jsonPath("$.contentUrl").value("/api/v1/organisations/" + orgId + "/media/" + mediaId + "/content"));
+    }
+
+    @Test
+    void rename_answersTheRenamedItem() throws Exception {
+        when(renameMediaUseCase.execute(orgId, mediaId, "Bronze Age gallery")).thenReturn(media("image/png", "Bronze Age gallery"));
+
+        mockMvc.perform(patch("/api/v1/organisations/{orgId}/media/{mediaId}", orgId, mediaId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"Bronze Age gallery\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Bronze Age gallery"));
+    }
+
+    @Test
+    void rename_invalidName_is400() throws Exception {
+        when(renameMediaUseCase.execute(orgId, mediaId, "")).thenThrow(new InvalidMediaNameException("The name can't be blank"));
+
+        mockMvc.perform(patch("/api/v1/organisations/{orgId}/media/{mediaId}", orgId, mediaId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_MEDIA_NAME"));
     }
 
     @Test

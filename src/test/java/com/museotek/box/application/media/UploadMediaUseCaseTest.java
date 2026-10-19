@@ -1,6 +1,7 @@
 package com.museotek.box.application.media;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.domain.media.InvalidMediaNameException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
 import com.museotek.box.domain.media.Media;
 import com.museotek.box.domain.media.MediaKind;
@@ -51,7 +52,7 @@ class UploadMediaUseCaseTest {
         });
         when(mediaRepository.save(any(Media.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Media media = useCase.execute(orgId, "C:\\fakepath\\Gallery.png", "image/png", PNG.length, new ByteArrayInputStream(PNG));
+        Media media = useCase.execute(orgId, "C:\\fakepath\\Gallery.png", null, "image/png", PNG.length, new ByteArrayInputStream(PNG));
 
         assertThat(media.getId()).isNotNull();
         assertThat(media.getOrgId()).isEqualTo(orgId);
@@ -64,8 +65,36 @@ class UploadMediaUseCaseTest {
     }
 
     @Test
+    void givenName_isShownInsteadOfTheFilename() {
+        when(mediaStorage.store(eq(orgId), eq(".png"), any())).thenReturn(orgId + "/stored.png");
+        when(mediaRepository.save(any(Media.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Media media = useCase.execute(orgId, "IMG_0042.png", "  Bronze Age gallery  ", "image/png", PNG.length, new ByteArrayInputStream(PNG));
+
+        assertThat(media.getName()).isEqualTo("Bronze Age gallery");
+    }
+
+    @Test
+    void blankName_fallsBackToTheFilename() {
+        when(mediaStorage.store(eq(orgId), eq(".png"), any())).thenReturn(orgId + "/stored.png");
+        when(mediaRepository.save(any(Media.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Media media = useCase.execute(orgId, "IMG_0042.png", " ", "image/png", PNG.length, new ByteArrayInputStream(PNG));
+
+        assertThat(media.getName()).isEqualTo("IMG_0042.png");
+    }
+
+    @Test
+    void nameTooLong_isRefusedBeforeStoringAnything() {
+        assertThatThrownBy(() -> useCase.execute(orgId, "x.png", "a".repeat(256), "image/png", PNG.length, new ByteArrayInputStream(PNG)))
+                .isInstanceOf(InvalidMediaNameException.class);
+
+        verifyNoInteractions(mediaStorage, mediaRepository);
+    }
+
+    @Test
     void emptyFile_isRefused() {
-        assertThatThrownBy(() -> useCase.execute(orgId, "x.png", "image/png", 0, new ByteArrayInputStream(new byte[0])))
+        assertThatThrownBy(() -> useCase.execute(orgId, "x.png", null, "image/png", 0, new ByteArrayInputStream(new byte[0])))
                 .isInstanceOf(InvalidMediaUploadException.class);
 
         verifyNoInteractions(mediaStorage, mediaRepository);
@@ -73,7 +102,7 @@ class UploadMediaUseCaseTest {
 
     @Test
     void typeNotAllowed_isRefused() {
-        assertThatThrownBy(() -> useCase.execute(orgId, "x.svg", "image/svg+xml", 10, new ByteArrayInputStream(new byte[10])))
+        assertThatThrownBy(() -> useCase.execute(orgId, "x.svg", null, "image/svg+xml", 10, new ByteArrayInputStream(new byte[10])))
                 .isInstanceOf(UnsupportedMediaFileException.class)
                 .hasMessageContaining("not allowed")
                 .hasMessageContaining("image/jpeg, image/png, video/mp4");
@@ -83,7 +112,7 @@ class UploadMediaUseCaseTest {
 
     @Test
     void tooLargeForItsKind_isRefused() {
-        assertThatThrownBy(() -> useCase.execute(orgId, "x.png", "image/png", 101, new ByteArrayInputStream(PNG)))
+        assertThatThrownBy(() -> useCase.execute(orgId, "x.png", null, "image/png", 101, new ByteArrayInputStream(PNG)))
                 .isInstanceOf(MediaTooLargeException.class)
                 .hasMessageContaining("at most 100 bytes");
 
@@ -94,7 +123,7 @@ class UploadMediaUseCaseTest {
     void contentNotMatchingItsType_isRefused() {
         byte[] script = "<script>alert(1)</script>".getBytes();
 
-        assertThatThrownBy(() -> useCase.execute(orgId, "photo.png", "image/png", script.length, new ByteArrayInputStream(script)))
+        assertThatThrownBy(() -> useCase.execute(orgId, "photo.png", null, "image/png", script.length, new ByteArrayInputStream(script)))
                 .isInstanceOf(UnsupportedMediaFileException.class)
                 .hasMessageContaining("doesn't match");
 
@@ -106,7 +135,7 @@ class UploadMediaUseCaseTest {
         when(mediaStorage.store(eq(orgId), eq(".png"), any())).thenReturn(orgId + "/stored.png");
         when(mediaRepository.save(any(Media.class))).thenThrow(new RuntimeException("db down"));
 
-        assertThatThrownBy(() -> useCase.execute(orgId, "x.png", "image/png", PNG.length, new ByteArrayInputStream(PNG)))
+        assertThatThrownBy(() -> useCase.execute(orgId, "x.png", null, "image/png", PNG.length, new ByteArrayInputStream(PNG)))
                 .hasMessage("db down");
 
         verify(mediaStorage).delete(orgId + "/stored.png");
@@ -116,7 +145,7 @@ class UploadMediaUseCaseTest {
     void noOrgAccess_touchesNothing() {
         when(orgAccessGuard.requireAccess(orgId)).thenThrow(new CatalogueForbiddenException("not a member"));
 
-        assertThatThrownBy(() -> useCase.execute(orgId, "x.png", "image/png", PNG.length, new ByteArrayInputStream(PNG)))
+        assertThatThrownBy(() -> useCase.execute(orgId, "x.png", null, "image/png", PNG.length, new ByteArrayInputStream(PNG)))
                 .isInstanceOf(CatalogueForbiddenException.class);
 
         verifyNoInteractions(mediaStorage, mediaRepository);

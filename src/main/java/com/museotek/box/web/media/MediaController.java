@@ -2,7 +2,9 @@ package com.museotek.box.web.media;
 
 import com.museotek.box.application.media.DeleteMediaUseCase;
 import com.museotek.box.application.media.GetMediaContentQuery;
+import com.museotek.box.application.media.GetMediaQuery;
 import com.museotek.box.application.media.ListMediaQuery;
+import com.museotek.box.application.media.RenameMediaUseCase;
 import com.museotek.box.application.media.UploadMediaUseCase;
 import com.museotek.box.domain.media.Media;
 import com.museotek.box.domain.media.MediaKind;
@@ -18,8 +20,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,34 +43,48 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("/api/v1/organisations/{orgId}/media")
 public class MediaController {
 
+    // The name is checked in RenameMediaUseCase (blank or too long → 400 INVALID_MEDIA_NAME).
+    public record RenameRequest(String name) {
+    }
+
     private final UploadMediaUseCase uploadMediaUseCase;
     private final ListMediaQuery listMediaQuery;
+    private final GetMediaQuery getMediaQuery;
     private final GetMediaContentQuery getMediaContentQuery;
+    private final RenameMediaUseCase renameMediaUseCase;
     private final DeleteMediaUseCase deleteMediaUseCase;
 
     public MediaController(
             UploadMediaUseCase uploadMediaUseCase,
             ListMediaQuery listMediaQuery,
+            GetMediaQuery getMediaQuery,
             GetMediaContentQuery getMediaContentQuery,
+            RenameMediaUseCase renameMediaUseCase,
             DeleteMediaUseCase deleteMediaUseCase
     ) {
         this.uploadMediaUseCase = uploadMediaUseCase;
         this.listMediaQuery = listMediaQuery;
+        this.getMediaQuery = getMediaQuery;
         this.getMediaContentQuery = getMediaContentQuery;
+        this.renameMediaUseCase = renameMediaUseCase;
         this.deleteMediaUseCase = deleteMediaUseCase;
     }
 
     @Operation(summary = "Upload a file to the media library",
-            description = "multipart/form-data with the file in the 'file' field. Allowed: PNG, JPEG, WebP images; "
-                    + "MP3, WAV, OGG audio; MP4 video, each kind with its own size limit. 413 if too large, 415 if the "
+            description = "multipart/form-data with the file in the 'file' field and, optionally, the name to show "
+                    + "in the 'name' field (else the file's own name; 400 INVALID_MEDIA_NAME if over 255 characters). "
+                    + "Allowed: PNG, JPEG, WebP images; MP3, WAV, OGG audio; MP4 video, each kind with its own size limit. 413 if too large, 415 if the "
                     + "type isn't allowed or the content doesn't match it.")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<MediaResponse> upload(
-            @PathVariable UUID orgId, @RequestParam("file") MultipartFile file, HttpServletRequest request
+            @PathVariable UUID orgId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String name,
+            HttpServletRequest request
     ) {
         Media media;
         try (InputStream content = file.getInputStream()) {
-            media = uploadMediaUseCase.execute(orgId, file.getOriginalFilename(), file.getContentType(), file.getSize(), content);
+            media = uploadMediaUseCase.execute(orgId, file.getOriginalFilename(), name, file.getContentType(), file.getSize(), content);
         } catch (IOException e) {
             throw new UncheckedIOException("Could not read the uploaded file", e);
         }
@@ -83,6 +101,24 @@ public class MediaController {
         return media.stream()
                 .map(item -> MediaResponse.from(item, request.getContextPath()))
                 .toList();
+    }
+
+    @Operation(summary = "Get one media item's details")
+    @GetMapping("/{mediaId}")
+    public MediaResponse get(@PathVariable UUID orgId, @PathVariable UUID mediaId, HttpServletRequest request) {
+        return MediaResponse.from(getMediaQuery.execute(orgId, mediaId), request.getContextPath());
+    }
+
+    @Operation(summary = "Rename a media item",
+            description = "{\"name\": \"...\"} changes the name shown in the picker; the file and its id stay the same. "
+                    + "400 INVALID_MEDIA_NAME if blank or over 255 characters.")
+    @PatchMapping("/{mediaId}")
+    public MediaResponse rename(
+            @PathVariable UUID orgId, @PathVariable UUID mediaId, @RequestBody RenameRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        Media media = renameMediaUseCase.execute(orgId, mediaId, request.name());
+        return MediaResponse.from(media, httpRequest.getContextPath());
     }
 
     // A Resource body gets HTTP Range support from Spring for free: a Range request answers 206 with
