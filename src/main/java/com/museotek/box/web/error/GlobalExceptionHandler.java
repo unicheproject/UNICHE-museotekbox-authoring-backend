@@ -13,6 +13,7 @@ import com.museotek.box.domain.box.StartCardInUseException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.media.InvalidMediaNameException;
+import com.museotek.box.domain.template.ExperienceTemplateNotFoundException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
 import com.museotek.box.domain.media.MediaInUseException;
 import com.museotek.box.domain.media.MediaNotFoundException;
@@ -165,6 +166,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
     public ErrorEnvelope handleUnsupportedMediaFile(UnsupportedMediaFileException e) {
         return new ErrorEnvelope("UNSUPPORTED_MEDIA_TYPE", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(ExperienceTemplateNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorEnvelope handleTemplateNotFound(ExperienceTemplateNotFoundException e) {
+        return new ErrorEnvelope("TEMPLATE_NOT_FOUND", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(ScanObjectNotFoundException.class)
