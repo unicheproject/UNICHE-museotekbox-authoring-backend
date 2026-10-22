@@ -14,6 +14,8 @@ import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.media.InvalidMediaNameException;
 import com.museotek.box.domain.template.ExperienceTemplateNotFoundException;
+import com.museotek.box.domain.template.InvalidTemplateException;
+import com.museotek.box.domain.template.TemplateNotEditableException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
 import com.museotek.box.domain.media.MediaInUseException;
 import com.museotek.box.domain.media.MediaNotFoundException;
@@ -172,6 +174,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorEnvelope handleTemplateNotFound(ExperienceTemplateNotFoundException e) {
         return new ErrorEnvelope("TEMPLATE_NOT_FOUND", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(InvalidTemplateException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleInvalidTemplate(InvalidTemplateException e) {
+        return new ErrorEnvelope("INVALID_TEMPLATE", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(TemplateNotEditableException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorEnvelope handleTemplateNotEditable(TemplateNotEditableException e) {
+        return new ErrorEnvelope("TEMPLATE_NOT_EDITABLE", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(ScanObjectNotFoundException.class)
