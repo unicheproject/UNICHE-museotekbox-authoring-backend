@@ -59,7 +59,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CatalogueNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorEnvelope handleNotFound(CatalogueNotFoundException e) {
-        return new ErrorEnvelope("NOT_FOUND", e.getMessage(), List.of(), requestId());
+        // The Catalogue exceptions name the Catalogue call that failed: useful in the log, but
+        // the internal API layout is not for the client, so the client gets a fixed text.
+        log.info("Not found: {}", e.getMessage());
+        return new ErrorEnvelope("NOT_FOUND", "The resource does not exist or you have no access to it", List.of(), requestId());
     }
 
     @ExceptionHandler(BoxNotFoundException.class)
@@ -217,7 +220,7 @@ public class GlobalExceptionHandler {
     public ErrorEnvelope handleForbidden(CatalogueForbiddenException e) {
         // Unlike 404/400 (expected, routine traffic), 403 is worth a security-audit trail.
         log.warn("Forbidden: {}", e.getMessage());
-        return new ErrorEnvelope("FORBIDDEN", e.getMessage(), List.of(), requestId());
+        return new ErrorEnvelope("FORBIDDEN", "You do not have access to this resource", List.of(), requestId());
     }
 
     @ExceptionHandler(OrgManagerRequiredException.class)
@@ -230,13 +233,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CatalogueConflictException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorEnvelope handleConflict(CatalogueConflictException e) {
-        return new ErrorEnvelope("CONFLICT", e.getMessage(), List.of(), requestId());
+        log.info("Conflict: {}", e.getMessage());
+        return new ErrorEnvelope("CONFLICT", "The UNICHE Catalogue reported a conflict with the current state", List.of(), requestId());
     }
 
     @ExceptionHandler(CatalogueUnprocessableException.class)
     @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
     public ErrorEnvelope handleUnprocessable(CatalogueUnprocessableException e) {
-        return new ErrorEnvelope("UPSTREAM_VALIDATION_ERROR", e.getMessage(), List.of(), requestId());
+        log.info("Catalogue validation failed: {}", e.getMessage());
+        return new ErrorEnvelope("UPSTREAM_VALIDATION_ERROR", "The UNICHE Catalogue rejected the request as invalid", List.of(), requestId());
     }
 
     @ExceptionHandler(CatalogueTimeoutException.class)

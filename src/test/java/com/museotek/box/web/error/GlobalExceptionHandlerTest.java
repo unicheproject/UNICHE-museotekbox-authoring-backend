@@ -210,7 +210,7 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/not-found"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("Project not found or not accessible: 123"))
+                .andExpect(jsonPath("$.message").value("The resource does not exist or you have no access to it"))
                 .andExpect(jsonPath("$.details").isEmpty())
                 .andExpect(jsonPath("$.requestId").value("test-request-id"));
     }
@@ -229,21 +229,23 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/forbidden"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"))
-                .andExpect(jsonPath("$.message").value("Not a manager of organisation: 456"));
+                .andExpect(jsonPath("$.message").value("You do not have access to this resource"));
     }
 
     @Test
     void catalogueConflictException_mapsTo409WithConflictCode() throws Exception {
         mockMvc.perform(get("/test/conflict"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("CONFLICT"));
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/api/"))));
     }
 
     @Test
     void catalogueUnprocessableException_mapsTo422WithUpstreamValidationErrorCode() throws Exception {
         mockMvc.perform(get("/test/unprocessable"))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.code").value("UPSTREAM_VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.code").value("UPSTREAM_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/api/"))));
     }
 
     @Test
