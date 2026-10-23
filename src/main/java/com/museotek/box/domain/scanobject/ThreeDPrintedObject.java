@@ -16,6 +16,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class ThreeDPrintedObject extends ScanObject {
 
-    @Column(nullable = false)
+    @Column(name = "model_ref", nullable = false, length = 255)
     private String modelRef;
 }

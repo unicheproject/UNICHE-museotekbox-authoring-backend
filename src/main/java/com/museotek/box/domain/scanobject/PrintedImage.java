@@ -16,6 +16,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PrintedImage extends ScanObject {
 
-    @Column(nullable = false)
+    @Column(name = "image_url", nullable = false, length = 255)
     private String imageUrl;
 }

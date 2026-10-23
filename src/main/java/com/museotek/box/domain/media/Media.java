@@ -26,31 +26,32 @@ import java.util.UUID;
 public class Media {
 
     @Id
+    @Column(name = "id", nullable = false)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "org_id", nullable = false)
     private UUID orgId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "kind", nullable = false, length = 15)
     private MediaKind kind;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column(nullable = false)
+    @Column(name = "content_type", nullable = false, length = 100)
     private String contentType;
 
-    @Column(nullable = false)
+    @Column(name = "size_bytes", nullable = false)
     private long sizeBytes;
 
-    @Column(nullable = false)
+    @Column(name = "stored_filename", nullable = false, length = 255)
     private String storedFilename;
 
     // The uploader's JWT subject, like users.subject.
-    @Column
+    @Column(name = "uploaded_by", length = 255)
     private String uploadedBy;
 
-    @Column(nullable = false)
+    @Column(name = "uploaded_at", nullable = false)
     private Instant uploadedAt;
 }

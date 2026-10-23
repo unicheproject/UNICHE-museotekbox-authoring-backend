@@ -31,46 +31,47 @@ public class Rule {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "scene_id", nullable = false)
     private Scene scene;
 
-    @Column(nullable = false)
+    @Column(name = "rule_key", nullable = false, length = 64)
     private String ruleKey;
 
-    @Column(nullable = false)
+    @Column(name = "position", nullable = false)
     private Integer position;
 
     // When: the trigger, plus what some triggers need (the card for SCAN, the seconds for TIMER_ELAPSED).
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "trigger_type", nullable = false, length = 31)
     private RuleTrigger triggerType;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "scan_object_type_id")
     private ScanObjectType scanObjectType;
 
-    @Column
+    @Column(name = "trigger_seconds")
     private Integer triggerSeconds;
 
     // If: null means always.
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column
+    @Column(name = "condition")
     private RuleCondition condition;
 
     // Do: in order, possibly none.
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false)
+    @Column(name = "effects", nullable = false)
     private List<RuleEffect> effects = new ArrayList<>();
 
     // Then. targetSceneKey is set only for GO_TO; validated against the document by application
     // code, not a DB foreign key (see the proposal doc).
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "destination_type", nullable = false, length = 15)
     private RuleDestination destinationType;
 
-    @Column
+    @Column(name = "target_scene_key", length = 64)
     private String targetSceneKey;
 }

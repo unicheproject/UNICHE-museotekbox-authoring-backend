@@ -34,16 +34,17 @@ import java.util.UUID;
 public class ExperienceFlow {
 
     @Id
+    @Column(name = "project_id", nullable = false)
     private UUID projectId;
 
-    @Column(nullable = false)
+    @Column(name = "schema_version", nullable = false)
     private Integer schemaVersion;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false)
+    @Column(name = "flow", nullable = false)
     private String flow;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "output", nullable = false, length = 15)
     private ExperienceOutput output;
 }

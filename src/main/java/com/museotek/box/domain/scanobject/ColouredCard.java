@@ -19,6 +19,6 @@ import lombok.Setter;
 public class ColouredCard extends ScanObject {
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "colour", nullable = false, length = 255)
     private CardColour colour;
 }

@@ -16,23 +16,24 @@ public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "subject", nullable = false, unique = true, length = 255)
     private String subject;
 
-    @Column
+    @Column(name = "email", length = 255)
     private String email;
 
-    @Column
+    @Column(name = "preferred_username", length = 255)
     private String preferredUsername;
 
-    @Column
+    @Column(name = "display_name", length = 255)
     private String displayName;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "first_seen_at", nullable = false, updatable = false)
     private Instant firstSeenAt;
 
-    @Column
+    @Column(name = "last_seen_at")
     private Instant lastSeenAt;
 }

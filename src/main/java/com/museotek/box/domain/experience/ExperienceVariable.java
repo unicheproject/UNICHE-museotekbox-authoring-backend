@@ -31,19 +31,20 @@ public class ExperienceVariable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
-    @Column(nullable = false)
+    @Column(name = "variable_key", nullable = false, length = 64)
     private String variableKey;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "kind", nullable = false, length = 15)
     private VariableKind kind;
 
-    @Column(nullable = false)
+    @Column(name = "initial_value", nullable = false, length = 64)
     private String initialValue;
 }

@@ -40,29 +40,30 @@ import java.util.UUID;
 public class Project {
 
     @Id
+    @Column(name = "id", nullable = false)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "org_id", nullable = false)
     private UUID orgId;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column
+    @Column(name = "deleted_at")
     private Instant deletedAt;
 
     // Bumped on every experience-document write; the client echoes it back as If-Match.
-    @Column(nullable = false)
+    @Column(name = "doc_version", nullable = false)
     private int docVersion;
 
     // Next unused scene_key/block_key/rule_key value for this project; a client-invented key
     // for a new row must be >= this. Bumped past the highest key used by every write.
-    @Column(nullable = false)
+    @Column(name = "next_scene_seq", nullable = false)
     private int nextSceneSeq = 1;
 
-    @Column(nullable = false)
+    @Column(name = "next_block_seq", nullable = false)
     private int nextBlockSeq = 1;
 
-    @Column(nullable = false)
+    @Column(name = "next_rule_seq", nullable = false)
     private int nextRuleSeq = 1;
 }

@@ -24,19 +24,20 @@ public class Scene {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
-    @Column(nullable = false)
+    @Column(name = "scene_key", nullable = false, length = 64)
     private String sceneKey;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column(nullable = false)
+    @Column(name = "position", nullable = false)
     private Integer position;
 
     @Column(name = "is_start", nullable = false)

@@ -29,22 +29,23 @@ public abstract class ScanObject {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "org_id", nullable = false)
     private UUID orgId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "scan_object_type_id")
     private ScanObjectType scanObjectType;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
     // Nullable: a Draft is digital-only and may have no physical tag assigned yet.
-    @Column(unique = true)
+    @Column(name = "rfid_tag", unique = true, length = 255)
     private String rfidTag;
 
-    @Column(nullable = false)
+    @Column(name = "reusable", nullable = false)
     private boolean reusable;
 }

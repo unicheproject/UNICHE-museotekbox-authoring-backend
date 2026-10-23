@@ -27,23 +27,24 @@ public class Block {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "scene_id", nullable = false)
     private Scene scene;
 
-    @Column(nullable = false)
+    @Column(name = "block_key", nullable = false, length = 64)
     private String blockKey;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "type", nullable = false, length = 31)
     private BlockType type;
 
-    @Column(nullable = false)
+    @Column(name = "position", nullable = false)
     private Integer position;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false)
+    @Column(name = "content", nullable = false)
     private String content;
 }

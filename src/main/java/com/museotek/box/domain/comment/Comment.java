@@ -25,48 +25,49 @@ import java.util.UUID;
 public class Comment {
 
     @Id
+    @Column(name = "id", nullable = false)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "project_id", nullable = false)
     private UUID projectId;
 
-    @Column
+    @Column(name = "parent_id")
     private UUID parentId;
 
-    @Column
+    @Column(name = "scene_key", length = 64)
     private String sceneKey;
 
-    @Column
+    @Column(name = "step_key", length = 64)
     private String stepKey;
 
-    @Column(nullable = false)
+    @Column(name = "body", nullable = false)
     private String body;
 
-    @Column(nullable = false)
+    @Column(name = "author_subject", nullable = false, length = 255)
     private String authorSubject;
 
     // The name shown, copied from the users table when the comment was written.
-    @Column(nullable = false)
+    @Column(name = "author_name", nullable = false, length = 255)
     private String authorName;
 
     // Thread starts only.
-    @Column(nullable = false)
+    @Column(name = "resolved", nullable = false)
     private boolean resolved;
 
-    @Column
+    @Column(name = "resolved_by", length = 255)
     private String resolvedBy;
 
-    @Column
+    @Column(name = "resolved_at")
     private Instant resolvedAt;
 
     // When the thread was last resolved or reopened; counts as activity for "anything new since".
-    @Column
+    @Column(name = "status_changed_at")
     private Instant statusChangedAt;
 
     // Thread starts only: when a reply was last deleted; also counts as activity for "anything new since".
-    @Column
+    @Column(name = "reply_deleted_at")
     private Instant replyDeletedAt;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 }

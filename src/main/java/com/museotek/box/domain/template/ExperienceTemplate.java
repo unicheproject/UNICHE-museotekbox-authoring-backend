@@ -30,35 +30,36 @@ import java.util.UUID;
 public class ExperienceTemplate {
 
     @Id
+    @Column(name = "id", nullable = false)
     private UUID id;
 
     // Empty for a global template.
-    @Column
+    @Column(name = "org_id")
     private UUID orgId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "type", nullable = false, length = 31)
     private ExperienceTemplateType type;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column
+    @Column(name = "description", length = 1000)
     private String description;
 
     // The frontend form's starting values. Its shape belongs to the frontend; only checked to be a JSON object.
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false)
+    @Column(name = "defaults", nullable = false)
     private String defaults;
 
     // The creator's JWT subject, like users.subject. Empty for global templates.
-    @Column
+    @Column(name = "created_by", length = 255)
     private String createdBy;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     public boolean isGlobal() {

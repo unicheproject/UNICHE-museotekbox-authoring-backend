@@ -31,19 +31,20 @@ public class Box {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "org_id", nullable = false)
     private UUID orgId;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "serial_number", nullable = false, unique = true, length = 255)
     private String serialNumber;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false, length = 255)
     private BoxStatus status = BoxStatus.OFFLINE;
 
     @ManyToOne(fetch = FetchType.LAZY)
