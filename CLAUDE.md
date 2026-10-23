@@ -84,6 +84,8 @@ uploads limited by size, type and content (magic bytes); deliberate CORS. Report
 - **Layers:** controller (`web/<feature>`, HTTP only, own request/response records) → `application/<feature>`
   (`*Query` = read, `*UseCase` = write, `@Transactional`) → repository (`infrastructure/repository`, flat). Entities
   never leave the API. Controllers never call Catalogue or a repository directly.
+- **Time:** always `Instant.now(clock)` with the injected `Clock` bean (`ClockConfig`), never `Instant.now()`.
+  Tests pass `Clock.fixed(...)`.
 - **Style:** constructor injection, one short Javadoc line per class, explicit `if` null checks, comments only where the why is not obvious.
 - **Lombok:** entities only (`@Getter`, `@Setter`, `@NoArgsConstructor`). Nowhere else.
 - **Entities:** explicit `@Column(name, nullable, length)` matching the SQL, lazy `@ManyToOne` only, no collections
@@ -140,18 +142,27 @@ disagree, this file wins and the document is fixed.
 - 2026-10-21 Experience templates are "half": types are a Java enum and the compiler stays in the frontend; presets
   are rows (global via Liquibase only, the org's own via manager CRUD). Why: a new type always needs frontend code.
 
-**Kept as is from the guidelines audit (do not "fix" in passing):**
-- Error body is `ErrorEnvelope`, not RFC 9457 problem details. Why: changing it must be coordinated with the frontend.
+**Kept as is from the guidelines audit (2026-10-23, do not "fix" in passing):**
+- Error body stays `ErrorEnvelope`, not RFC 9457 problem details. Why: the format changes together with the frontend
+  (frontend reads both first, then the backend switches); not started.
 - Liquibase changesets are SQL files, not `NNN-verb-noun.yaml`; unique prefix stays `uk_`. Why: consistency with 01-07.
-- Enum columns are `VARCHAR` without a `CHECK`. Why: existing tables; new ones may add a `CHECK`.
-- Business code calls `Instant.now()`; there is no injected `Clock` yet.
+- No `CHECK` on enum columns, also for new tables. Why: trigger, block and template types grow often, and a `CHECK`
+  would make each new value a migration; Hibernate maps the enum by name and the API rejects unknown values.
+- Queries are not `@Transactional(readOnly = true)`. Why: almost every query calls an access guard first, which is an
+  HTTP call to Catalogue; a transaction around it would hold a database connection for that whole call.
+- Existing entities keep class-level Lombok `@Setter` and their current timestamp columns. New or reworked entities
+  follow section 7 (required-field constructor, setters only for fields that change) and get `created_at` /
+  `updated_at`. Why: MIGRATION.md, no refactor only for the guidelines.
 - Use-case tests mock our own repositories and guards. Why: they test rules and access checks without a database;
   queries are covered by `@DataJpaTest`.
+- The JWT subject may appear in logs (e.g. JIT provisioning failures), never in responses. Why: it is a pseudonymous
+  id and the only way to trace a user's error; names and emails stay out of logs.
+- Dependency vulnerabilities: GitHub Dependabot (`.github/dependabot.yml`); alerts are switched on in the repo settings.
 
 **Open points: do not guess, ask.**
-- Move errors to RFC 9457 (`application/problem+json`, `errors[]`, `errorId`)? Needs the frontend developer.
-- Introduce an injected `Clock` for new code?
-- No security scan is configured (dependency check, static analysis, secret detection).
+- GDPR export/erase: a written SQL procedure (users row; author, resolver, uploader and creator subjects anonymised),
+  after the platform team says whether erasure is coordinated across UNICHE tools.
+- Static analysis and secret detection are not configured.
 - Should platform admins be able to edit or delete global templates?
 - Box device API (box auth, downloading published experiences and media, rule evaluation order) is not designed yet.
 

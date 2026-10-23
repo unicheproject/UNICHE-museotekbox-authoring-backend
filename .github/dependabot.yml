@@ -1,0 +1,19 @@
+# Weekly pull requests for outdated Maven dependencies and GitHub Actions. Security alerts
+# for known vulnerabilities also need "Dependabot alerts" switched on in the repo settings.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for all Spring Boot managed versions instead of one per artifact.
+      spring-boot:
+        patterns:
+          - "org.springframework.boot:*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
