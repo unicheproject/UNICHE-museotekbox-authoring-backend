@@ -5,6 +5,9 @@ import com.museotek.box.infrastructure.repository.ProjectRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,8 +20,11 @@ import static org.mockito.Mockito.when;
 
 class ProjectCompanionSyncServiceTest {
 
+    private static final Instant NOW = Instant.parse("2026-10-23T10:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
     private final ProjectRepository projectRepository = mock(ProjectRepository.class);
-    private final ProjectCompanionSyncService service = new ProjectCompanionSyncService(projectRepository);
+    private final ProjectCompanionSyncService service = new ProjectCompanionSyncService(projectRepository, CLOCK);
 
     @Test
     void upsert_createsNewRowWhenNoneExists() {
@@ -44,7 +50,7 @@ class ProjectCompanionSyncServiceTest {
         UUID orgId = UUID.randomUUID();
         Project existing = new Project();
         existing.setId(id);
-        existing.setDeletedAt(java.time.Instant.now());
+        existing.setDeletedAt(NOW);
         when(projectRepository.findById(id)).thenReturn(Optional.of(existing));
         when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -68,7 +74,7 @@ class ProjectCompanionSyncServiceTest {
 
         ArgumentCaptor<Project> captor = ArgumentCaptor.forClass(Project.class);
         verify(projectRepository).save(captor.capture());
-        assertThat(captor.getValue().getDeletedAt()).isNotNull();
+        assertThat(captor.getValue().getDeletedAt()).isEqualTo(NOW);
     }
 
     @Test

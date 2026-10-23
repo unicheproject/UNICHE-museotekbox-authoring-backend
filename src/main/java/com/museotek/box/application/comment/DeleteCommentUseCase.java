@@ -12,6 +12,7 @@ import com.museotek.box.infrastructure.repository.CommentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -34,17 +35,20 @@ public class DeleteCommentUseCase {
     private final CatalogueClient catalogueClient;
     private final CommentRepository commentRepository;
     private final CommentAuthor commentAuthor;
+    private final Clock clock;
 
     public DeleteCommentUseCase(
             ProjectAccessGuard projectAccessGuard,
             CatalogueClient catalogueClient,
             CommentRepository commentRepository,
-            CommentAuthor commentAuthor
+            CommentAuthor commentAuthor,
+            Clock clock
     ) {
         this.projectAccessGuard = projectAccessGuard;
         this.catalogueClient = catalogueClient;
         this.commentRepository = commentRepository;
         this.commentAuthor = commentAuthor;
+        this.clock = clock;
     }
 
     @Transactional
@@ -62,7 +66,7 @@ public class DeleteCommentUseCase {
 
         if (comment.getParentId() != null) {
             commentRepository.findByIdAndProjectId(comment.getParentId(), projectId).ifPresent(start -> {
-                start.setReplyDeletedAt(Instant.now());
+                start.setReplyDeletedAt(Instant.now(clock));
                 commentRepository.save(start);
             });
         } else {

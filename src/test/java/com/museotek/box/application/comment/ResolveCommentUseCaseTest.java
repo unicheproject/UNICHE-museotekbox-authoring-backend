@@ -8,7 +8,9 @@ import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.CommentRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,10 +26,13 @@ import static org.mockito.Mockito.when;
 
 class ResolveCommentUseCaseTest {
 
+    private static final Instant NOW = Instant.parse("2026-10-23T10:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
     private final ProjectAccessGuard projectAccessGuard = mock(ProjectAccessGuard.class);
     private final CommentRepository commentRepository = mock(CommentRepository.class);
     private final CommentAuthor commentAuthor = mock(CommentAuthor.class);
-    private final ResolveCommentUseCase useCase = new ResolveCommentUseCase(projectAccessGuard, commentRepository, commentAuthor);
+    private final ResolveCommentUseCase useCase = new ResolveCommentUseCase(projectAccessGuard, commentRepository, commentAuthor, CLOCK);
 
     private final UUID projectId = UUID.randomUUID();
     private final UUID threadId = UUID.randomUUID();
@@ -44,7 +49,7 @@ class ResolveCommentUseCaseTest {
 
         assertThat(thread.isResolved()).isTrue();
         assertThat(thread.getResolvedBy()).isEqualTo("Salvador T.");
-        assertThat(thread.getResolvedAt()).isNotNull();
+        assertThat(thread.getResolvedAt()).isEqualTo(NOW);
         assertThat(thread.getStatusChangedAt()).isEqualTo(thread.getResolvedAt());
         assertThat(result.replies()).containsExactly(reply);
     }
@@ -61,7 +66,7 @@ class ResolveCommentUseCaseTest {
         assertThat(thread.isResolved()).isFalse();
         assertThat(thread.getResolvedBy()).isNull();
         assertThat(thread.getResolvedAt()).isNull();
-        assertThat(thread.getStatusChangedAt()).isAfter(Instant.parse("2026-10-07T10:00:00Z"));
+        assertThat(thread.getStatusChangedAt()).isEqualTo(NOW);
     }
 
     @Test

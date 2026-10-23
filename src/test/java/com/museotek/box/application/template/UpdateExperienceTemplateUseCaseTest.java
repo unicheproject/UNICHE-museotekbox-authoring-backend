@@ -11,7 +11,9 @@ import com.museotek.box.domain.template.TemplateNotEditableException;
 import com.museotek.box.infrastructure.repository.ExperienceTemplateRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,12 +29,15 @@ import static org.mockito.Mockito.when;
 
 class UpdateExperienceTemplateUseCaseTest {
 
+    private static final Instant NOW = Instant.parse("2026-10-23T10:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Instant CREATED = Instant.parse("2026-10-01T10:00:00Z");
 
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
     private final ExperienceTemplateRepository templateRepository = mock(ExperienceTemplateRepository.class);
-    private final UpdateExperienceTemplateUseCase useCase = new UpdateExperienceTemplateUseCase(orgAccessGuard, templateRepository);
+    private final UpdateExperienceTemplateUseCase useCase = new UpdateExperienceTemplateUseCase(orgAccessGuard, templateRepository, CLOCK);
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID templateId = UUID.randomUUID();
@@ -47,7 +52,7 @@ class UpdateExperienceTemplateUseCaseTest {
         assertThat(updated.getDescription()).isEqualTo("Five easy questions");
         assertThat(updated.getDefaults()).isEqualTo("{\"questions\":7}");
         assertThat(updated.getType()).isEqualTo(ExperienceTemplateType.QUIZ);
-        assertThat(updated.getUpdatedAt()).isAfter(CREATED);
+        assertThat(updated.getUpdatedAt()).isEqualTo(NOW);
         verify(templateRepository).save(template);
     }
 

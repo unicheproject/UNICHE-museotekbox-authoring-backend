@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -45,7 +46,7 @@ class CatalogueClientTest {
     }
 
     private CatalogueClient client() {
-        return new CatalogueClient(baseUrl);
+        return new CatalogueClient(baseUrl, Clock.systemUTC());
     }
 
     private void authenticateAs(String subject) {
@@ -195,7 +196,7 @@ class CatalogueClientTest {
         // No server started at all — the RestClient never receives a status code, so this
         // exercises the transport-failure path (ResourceAccessException) rather than mapError().
         authenticateAs("user-1");
-        CatalogueClient client = new CatalogueClient("http://localhost:1");
+        CatalogueClient client = new CatalogueClient("http://localhost:1", Clock.systemUTC());
 
         assertThatThrownBy(() -> client.getProject(UUID.randomUUID()))
                 .isInstanceOf(CatalogueUnavailableException.class);

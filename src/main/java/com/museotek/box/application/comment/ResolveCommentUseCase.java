@@ -7,6 +7,7 @@ import com.museotek.box.domain.comment.InvalidCommentException;
 import com.museotek.box.infrastructure.repository.CommentRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -22,11 +23,13 @@ public class ResolveCommentUseCase {
     private final ProjectAccessGuard projectAccessGuard;
     private final CommentRepository commentRepository;
     private final CommentAuthor commentAuthor;
+    private final Clock clock;
 
-    public ResolveCommentUseCase(ProjectAccessGuard projectAccessGuard, CommentRepository commentRepository, CommentAuthor commentAuthor) {
+    public ResolveCommentUseCase(ProjectAccessGuard projectAccessGuard, CommentRepository commentRepository, CommentAuthor commentAuthor, Clock clock) {
         this.projectAccessGuard = projectAccessGuard;
         this.commentRepository = commentRepository;
         this.commentAuthor = commentAuthor;
+        this.clock = clock;
     }
 
     public CommentThread execute(UUID projectId, UUID commentId, boolean resolved) {
@@ -40,7 +43,7 @@ public class ResolveCommentUseCase {
         }
 
         if (comment.isResolved() != resolved) {
-            Instant now = Instant.now();
+            Instant now = Instant.now(clock);
             comment.setResolved(resolved);
             comment.setStatusChangedAt(now);
             if (resolved) {

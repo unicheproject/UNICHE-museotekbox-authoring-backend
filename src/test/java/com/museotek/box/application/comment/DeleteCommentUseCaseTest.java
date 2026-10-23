@@ -13,6 +13,9 @@ import com.museotek.box.infrastructure.repository.CommentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,12 +32,15 @@ import static org.mockito.Mockito.when;
 
 class DeleteCommentUseCaseTest {
 
+    private static final Instant NOW = Instant.parse("2026-10-23T10:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
     private final ProjectAccessGuard projectAccessGuard = mock(ProjectAccessGuard.class);
     private final CatalogueClient catalogueClient = mock(CatalogueClient.class);
     private final CommentRepository commentRepository = mock(CommentRepository.class);
     private final CommentAuthor commentAuthor = mock(CommentAuthor.class);
     private final DeleteCommentUseCase useCase =
-            new DeleteCommentUseCase(projectAccessGuard, catalogueClient, commentRepository, commentAuthor);
+            new DeleteCommentUseCase(projectAccessGuard, catalogueClient, commentRepository, commentAuthor, CLOCK);
 
     private final UUID projectId = UUID.randomUUID();
     private final UUID orgId = UUID.randomUUID();
@@ -66,7 +72,7 @@ class DeleteCommentUseCaseTest {
 
         useCase.execute(projectId, reply.getId());
 
-        assertThat(start.getReplyDeletedAt()).isNotNull();
+        assertThat(start.getReplyDeletedAt()).isEqualTo(NOW);
         verify(commentRepository).save(start);
         verify(commentRepository).delete(reply);
     }

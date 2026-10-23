@@ -16,6 +16,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -47,17 +48,20 @@ public class UploadMediaUseCase {
     private final MediaRepository mediaRepository;
     private final MediaStorage mediaStorage;
     private final MediaProperties mediaProperties;
+    private final Clock clock;
 
     public UploadMediaUseCase(
             OrgAccessGuard orgAccessGuard,
             MediaRepository mediaRepository,
             MediaStorage mediaStorage,
-            MediaProperties mediaProperties
+            MediaProperties mediaProperties,
+            Clock clock
     ) {
         this.orgAccessGuard = orgAccessGuard;
         this.mediaRepository = mediaRepository;
         this.mediaStorage = mediaStorage;
         this.mediaProperties = mediaProperties;
+        this.clock = clock;
     }
 
     public Media execute(
@@ -96,7 +100,7 @@ public class UploadMediaUseCase {
             media.setSizeBytes(sizeBytes);
             media.setStoredFilename(storedFilename);
             media.setUploadedBy(CurrentPrincipal.subject().orElse(null));
-            media.setUploadedAt(Instant.now());
+            media.setUploadedAt(Instant.now(clock));
             return mediaRepository.save(media);
         } catch (RuntimeException e) {
             mediaStorage.delete(storedFilename);

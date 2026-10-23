@@ -16,6 +16,9 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,6 +34,9 @@ import static org.mockito.Mockito.when;
 
 class UploadMediaUseCaseTest {
 
+    private static final Instant NOW = Instant.parse("2026-10-23T10:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 'I', 'H', 'D', 'R'};
 
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
@@ -39,7 +45,7 @@ class UploadMediaUseCaseTest {
     private final MediaProperties properties = new MediaProperties("uploads", Map.of(
             MediaKind.IMAGE, new MediaProperties.KindRule(100, List.of("image/png", "image/jpeg")),
             MediaKind.VIDEO, new MediaProperties.KindRule(1000, List.of("video/mp4"))));
-    private final UploadMediaUseCase useCase = new UploadMediaUseCase(orgAccessGuard, mediaRepository, mediaStorage, properties);
+    private final UploadMediaUseCase useCase = new UploadMediaUseCase(orgAccessGuard, mediaRepository, mediaStorage, properties, CLOCK);
 
     private final UUID orgId = UUID.randomUUID();
 
@@ -61,7 +67,7 @@ class UploadMediaUseCaseTest {
         assertThat(media.getContentType()).isEqualTo("image/png");
         assertThat(media.getSizeBytes()).isEqualTo(PNG.length);
         assertThat(media.getStoredFilename()).isEqualTo(orgId + "/stored.png");
-        assertThat(media.getUploadedAt()).isNotNull();
+        assertThat(media.getUploadedAt()).isEqualTo(NOW);
     }
 
     @Test

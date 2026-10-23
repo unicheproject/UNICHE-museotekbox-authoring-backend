@@ -5,6 +5,7 @@ import com.museotek.box.domain.comment.Comment;
 import com.museotek.box.infrastructure.repository.CommentRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -15,11 +16,13 @@ public class AddCommentUseCase {
     private final ProjectAccessGuard projectAccessGuard;
     private final CommentRepository commentRepository;
     private final CommentAuthor commentAuthor;
+    private final Clock clock;
 
-    public AddCommentUseCase(ProjectAccessGuard projectAccessGuard, CommentRepository commentRepository, CommentAuthor commentAuthor) {
+    public AddCommentUseCase(ProjectAccessGuard projectAccessGuard, CommentRepository commentRepository, CommentAuthor commentAuthor, Clock clock) {
         this.projectAccessGuard = projectAccessGuard;
         this.commentRepository = commentRepository;
         this.commentAuthor = commentAuthor;
+        this.clock = clock;
     }
 
     public Comment execute(UUID projectId, String body, String sceneKey, String stepKey) {
@@ -35,7 +38,7 @@ public class AddCommentUseCase {
         comment.setBody(body);
         comment.setAuthorSubject(author.subject());
         comment.setAuthorName(author.name());
-        comment.setCreatedAt(Instant.now());
+        comment.setCreatedAt(Instant.now(clock));
         return commentRepository.save(comment);
     }
 }

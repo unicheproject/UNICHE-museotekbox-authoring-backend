@@ -8,6 +8,7 @@ import com.museotek.box.domain.template.TemplateNotEditableException;
 import com.museotek.box.infrastructure.repository.ExperienceTemplateRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -21,10 +22,12 @@ public class UpdateExperienceTemplateUseCase {
 
     private final OrgAccessGuard orgAccessGuard;
     private final ExperienceTemplateRepository templateRepository;
+    private final Clock clock;
 
-    public UpdateExperienceTemplateUseCase(OrgAccessGuard orgAccessGuard, ExperienceTemplateRepository templateRepository) {
+    public UpdateExperienceTemplateUseCase(OrgAccessGuard orgAccessGuard, ExperienceTemplateRepository templateRepository, Clock clock) {
         this.orgAccessGuard = orgAccessGuard;
         this.templateRepository = templateRepository;
+        this.clock = clock;
     }
 
     public ExperienceTemplate execute(UUID orgId, UUID templateId, String name, String description, JsonNode defaults) {
@@ -45,7 +48,7 @@ public class UpdateExperienceTemplateUseCase {
         if (!ExperienceTemplateRules.isAbsent(defaults)) {
             template.setDefaults(ExperienceTemplateRules.requireDefaults(defaults));
         }
-        template.setUpdatedAt(Instant.now());
+        template.setUpdatedAt(Instant.now(clock));
         return templateRepository.save(template);
     }
 }

@@ -8,7 +8,9 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,8 +25,11 @@ import static org.mockito.Mockito.when;
 
 class JitUserProvisioningServiceTest {
 
+    private static final Instant NOW = Instant.parse("2026-10-23T10:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
     private final UserRepository userRepository = mock(UserRepository.class);
-    private final JitUserProvisioningService service = new JitUserProvisioningService(userRepository);
+    private final JitUserProvisioningService service = new JitUserProvisioningService(userRepository, CLOCK);
 
     @BeforeEach
     void stubSaveAndFlush() {
@@ -57,8 +62,8 @@ class JitUserProvisioningServiceTest {
         assertThat(saved.getEmail()).isEqualTo("a@example.com");
         assertThat(saved.getPreferredUsername()).isEqualTo("alice");
         assertThat(saved.getDisplayName()).isEqualTo("Alice");
-        assertThat(saved.getFirstSeenAt()).isNotNull();
-        assertThat(saved.getLastSeenAt()).isNotNull();
+        assertThat(saved.getFirstSeenAt()).isEqualTo(NOW);
+        assertThat(saved.getLastSeenAt()).isEqualTo(NOW);
     }
 
     @Test

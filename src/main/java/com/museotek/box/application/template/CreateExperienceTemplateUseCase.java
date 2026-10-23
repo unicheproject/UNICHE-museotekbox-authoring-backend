@@ -7,6 +7,7 @@ import com.museotek.box.infrastructure.repository.ExperienceTemplateRepository;
 import com.museotek.box.infrastructure.security.CurrentPrincipal;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -20,10 +21,12 @@ public class CreateExperienceTemplateUseCase {
 
     private final OrgAccessGuard orgAccessGuard;
     private final ExperienceTemplateRepository templateRepository;
+    private final Clock clock;
 
-    public CreateExperienceTemplateUseCase(OrgAccessGuard orgAccessGuard, ExperienceTemplateRepository templateRepository) {
+    public CreateExperienceTemplateUseCase(OrgAccessGuard orgAccessGuard, ExperienceTemplateRepository templateRepository, Clock clock) {
         this.orgAccessGuard = orgAccessGuard;
         this.templateRepository = templateRepository;
+        this.clock = clock;
     }
 
     public ExperienceTemplate execute(UUID orgId, String type, String name, String description, JsonNode defaults) {
@@ -37,7 +40,7 @@ public class CreateExperienceTemplateUseCase {
         template.setDescription(ExperienceTemplateRules.description(description));
         template.setDefaults(ExperienceTemplateRules.isAbsent(defaults) ? "{}" : ExperienceTemplateRules.requireDefaults(defaults));
         template.setCreatedBy(CurrentPrincipal.subject().orElse(null));
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         template.setCreatedAt(now);
         template.setUpdatedAt(now);
         return templateRepository.save(template);

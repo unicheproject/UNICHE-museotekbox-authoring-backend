@@ -6,15 +6,18 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 
 @Service
 public class JitUserProvisioningService {
 
     private final UserRepository userRepository;
+    private final Clock clock;
 
-    public JitUserProvisioningService(UserRepository userRepository) {
+    public JitUserProvisioningService(UserRepository userRepository, Clock clock) {
         this.userRepository = userRepository;
+        this.clock = clock;
     }
 
     // Deliberately NOT @Transactional: each repository call below already gets its own
@@ -31,7 +34,7 @@ public class JitUserProvisioningService {
         String email = jwt.getClaimAsString("email");
         String preferredUsername = jwt.getClaimAsString("preferred_username");
         String displayName = jwt.getClaimAsString("name");
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
 
         User user = userRepository.findBySubject(subject).orElseGet(() -> {
             User u = new User();

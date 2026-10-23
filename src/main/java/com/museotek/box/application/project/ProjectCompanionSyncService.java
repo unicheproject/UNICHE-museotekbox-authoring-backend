@@ -5,6 +5,7 @@ import com.museotek.box.infrastructure.repository.ProjectRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -17,9 +18,11 @@ import java.util.UUID;
 public class ProjectCompanionSyncService {
 
     private final ProjectRepository projectRepository;
+    private final Clock clock;
 
-    public ProjectCompanionSyncService(ProjectRepository projectRepository) {
+    public ProjectCompanionSyncService(ProjectRepository projectRepository, Clock clock) {
         this.projectRepository = projectRepository;
+        this.clock = clock;
     }
 
     @Transactional
@@ -35,7 +38,7 @@ public class ProjectCompanionSyncService {
     @Transactional
     public void softDelete(UUID id) {
         projectRepository.findById(id).ifPresent(project -> {
-            project.setDeletedAt(Instant.now());
+            project.setDeletedAt(Instant.now(clock));
             projectRepository.save(project);
         });
     }

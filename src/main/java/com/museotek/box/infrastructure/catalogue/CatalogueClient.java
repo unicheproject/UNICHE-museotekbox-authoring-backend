@@ -20,6 +20,7 @@ import org.springframework.web.client.RestClient;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpTimeoutException;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -37,6 +38,7 @@ public class CatalogueClient {
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
 
     private final RestClient restClient;
+    private final Clock clock;
 
     // Per spec (GET /me/authorization is "cacheable, short-TTL"): keyed by subject, refreshed via
     // If-None-Match once the TTL Catalogue handed back has elapsed. Not a distributed cache — fine
@@ -45,7 +47,7 @@ public class CatalogueClient {
 
     private record CachedAuthorization(CatalogueMeAuthorizationDto dto, Instant expiresAt) {}
 
-    public CatalogueClient(@Value("${uniche.catalogue.base-url}") String baseUrl) {
+    public CatalogueClient(@Value("${uniche.catalogue.base-url}") String baseUrl, Clock clock) {
         // Default JDK HttpClient has no timeout at all if none is set — a hung/slow
         // Catalogue would otherwise block the request thread indefinitely instead of
         // failing fast.
@@ -62,6 +64,7 @@ public class CatalogueClient {
                 // HttpClientErrorException into the catch-all 500 handler.
                 .defaultStatusHandler(HttpStatusCode::isError, CatalogueClient::mapError)
                 .build();
+        this.clock = clock;
     }
 
     public CatalogueProjectDto getProject(UUID projectId) {
@@ -92,7 +95,7 @@ public class CatalogueClient {
     public CatalogueMeAuthorizationDto getMeAuthorization() {
         String subject = CurrentPrincipal.subject()
                 .orElseThrow(() -> new IllegalStateException("No JWT in security context"));
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
 
         CachedAuthorization cached = authorizationCache.get(subject);
         if (cached != null && now.isBefore(cached.expiresAt())) {

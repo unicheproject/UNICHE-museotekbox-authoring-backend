@@ -8,6 +8,9 @@ import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.CommentRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,11 +25,14 @@ import static org.mockito.Mockito.when;
 
 class AddCommentAndReplyUseCaseTest {
 
+    private static final Instant NOW = Instant.parse("2026-10-23T10:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
     private final ProjectAccessGuard projectAccessGuard = mock(ProjectAccessGuard.class);
     private final CommentRepository commentRepository = mock(CommentRepository.class);
     private final CommentAuthor commentAuthor = mock(CommentAuthor.class);
-    private final AddCommentUseCase addComment = new AddCommentUseCase(projectAccessGuard, commentRepository, commentAuthor);
-    private final AddReplyUseCase addReply = new AddReplyUseCase(projectAccessGuard, commentRepository, commentAuthor);
+    private final AddCommentUseCase addComment = new AddCommentUseCase(projectAccessGuard, commentRepository, commentAuthor, CLOCK);
+    private final AddReplyUseCase addReply = new AddReplyUseCase(projectAccessGuard, commentRepository, commentAuthor, CLOCK);
 
     private final UUID projectId = UUID.randomUUID();
 
@@ -45,7 +51,7 @@ class AddCommentAndReplyUseCaseTest {
         assertThat(comment.getAuthorSubject()).isEqualTo("user-1");
         assertThat(comment.getAuthorName()).isEqualTo("Maria P.");
         assertThat(comment.isResolved()).isFalse();
-        assertThat(comment.getCreatedAt()).isNotNull();
+        assertThat(comment.getCreatedAt()).isEqualTo(NOW);
     }
 
     @Test
