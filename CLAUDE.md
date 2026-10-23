@@ -29,7 +29,7 @@ must not contradict this file. Status as of 2026-10-23: development.
 ## 3. Working cycle
 1. **Plan:** agree scope, files, tests, open decisions and the commit split before any code.
 2. **Code** in small pieces, each one a commit that compiles, passes and can be tried in Postman.
-3. **Test:** `./mvnw test` is green, with tests that prove the new behaviour.
+3. **Test:** `./mvnw spotless:apply`, then `./mvnw test` is green, with tests that prove the new behaviour.
 4. **Security review** when the change touches anything on the trigger list in section 6.
 5. **Review** with the checklist below. Fix what is cheap, discuss the rest, report it to the owner.
 6. **Hand over:** list the changed files, the test count and a drafted commit message.
@@ -50,7 +50,8 @@ Review checklist:
   when it isn't obvious. One purpose per commit.
 - Never force-push shared branches. Never commit secrets, IDE files, `target/`, `uploads/`, `.env*` (except
   `.env.example`) or local config. Commit lockfiles and wrappers.
-- Files in `docs/` are not maintained or mentioned in commits unless the owner asks. `docs/proposal-*.md` are audit
+- Files in `docs/` are not maintained or mentioned in commits unless the owner asks. The exception is
+  `docs/error-codes.md`, which changes with every new error code. `docs/proposal-*.md` are audit
   documents: write them, don't commit them unless asked.
 
 ## 5. Configuration and secrets
@@ -93,7 +94,8 @@ uploads limited by size, type and content (magic bytes); deliberate CORS. Report
 - **Errors:** one `GlobalExceptionHandler` (`web/error`) maps every exception to `ErrorEnvelope(code, message, details,
   requestId)` with a stable `code` (e.g. `TEMPLATE_NOT_FOUND`). Each feature throws its own domain exception; nothing
   builds an error body itself. Unexpected errors return 500 `INTERNAL_ERROR`, logged with the request id. Never leak
-  SQL, stack traces or exception messages. A new `code` is listed for the frontend. See section 12 about RFC 9457.
+  SQL, stack traces or exception messages. A new `code` is added to `docs/error-codes.md`
+  in the same commit. See section 12 about RFC 9457.
 - **Validation:** every column length has a matching check at the API boundary (a `*Rules`/`*Names` helper in the
   feature's `application` package). The database error is a last line of defence, never the user feedback.
 - **Logging:** SLF4J, levels with context, no personal data and no secrets, expected user errors not at ERROR.
@@ -124,6 +126,7 @@ docker compose up -d                     # local Postgres (needs .env)
 ./mvnw test                              # all tests (Docker must be running for Testcontainers)
 ./mvnw -Dtest=Class#method test          # one test
 ./mvnw package                           # build
+./mvnw spotless:apply                    # sort imports, drop unused ones, trim whitespace (CI runs spotless:check)
 ```
 
 ## 11. Documents
@@ -131,6 +134,7 @@ Only documents marked living are trusted; a snapshot must be checked against the
 disagree, this file wins and the document is fixed.
 - `README.md` (living): what the system is, Catalogue integration, package structure, adding a feature
 - `docs/architecture-and-classes.md`, `docs/security-and-errors.md`, `docs/dependencies-and-config.md` (snapshot)
+- `docs/error-codes.md` (living): every error `code`, its status and when it happens. Update it with each new code
 - `docs/experience-api-flow.md`, `docs/frontend-*.md` (snapshot): what the frontend needs to know
 - `docs/proposal-*.md` (snapshot): why a feature was built the way it was
 
@@ -146,6 +150,9 @@ disagree, this file wins and the document is fixed.
 - Error body stays `ErrorEnvelope`, not RFC 9457 problem details. Why: the format changes together with the frontend
   (frontend reads both first, then the backend switches); not started.
 - Liquibase changesets are SQL files, not `NNN-verb-noun.yaml`; unique prefix stays `uk_`. Why: consistency with 01-07.
+- Primary keys are mixed: `BIGINT` identity on the tables of changesets 01-03 (boxes, scan objects, scenes, blocks,
+  rules, users), `UUID` from 04 on (media, comments, templates), Catalogue's UUID for `projects`. New tables use
+  `UUID`. Why: changing existing keys would break every URL and foreign key; access is checked per org either way.
 - No `CHECK` on enum columns, also for new tables. Why: trigger, block and template types grow often, and a `CHECK`
   would make each new value a migration; Hibernate maps the enum by name and the API rejects unknown values.
 - Queries are not `@Transactional(readOnly = true)`. Why: almost every query calls an access guard first, which is an
@@ -162,7 +169,7 @@ disagree, this file wins and the document is fixed.
 **Open points: do not guess, ask.**
 - GDPR export/erase: a written SQL procedure (users row; author, resolver, uploader and creator subjects anonymised),
   after the platform team says whether erasure is coordinated across UNICHE tools.
-- Static analysis and secret detection are not configured.
+- Static analysis is not configured. Secret detection runs in CI (gitleaks, `secrets` job in `ci.yml`).
 - Should platform admins be able to edit or delete global templates?
 - Box device API (box auth, downloading published experiences and media, rule evaluation order) is not designed yet.
 

@@ -21,5 +21,22 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+      - name: Formatting (imports, whitespace; fix with ./mvnw spotless:apply)
+        run: bash mvnw --batch-mode spotless:check
       - name: Test
         run: bash mvnw --batch-mode test
+
+  # Fails when a password, key or token is found anywhere in the git history.
+  # The release binary, not gitleaks-action: the action needs a paid license on organisation repos.
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan for secrets
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
+            | tar -xz gitleaks
+          ./gitleaks detect --source . --redact --no-banner
