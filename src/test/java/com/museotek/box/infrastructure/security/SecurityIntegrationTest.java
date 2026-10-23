@@ -27,7 +27,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -86,6 +90,53 @@ class SecurityIntegrationTest {
     void protectedEndpoint_withNoToken_returns401() throws Exception {
         mockMvc.perform(get("/api/v1/me/authorization"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void a401_hasTheSameErrorBodyAsEveryOtherError() throws Exception {
+        mockMvc.perform(get("/api/v1/me/authorization"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("Bearer")))
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty());
+    }
+
+    @Test
+    void aRefusedToken_hasTheErrorBodyToo() throws Exception {
+        Date now = new Date();
+        String token = idp.signedJwt(UUID.randomUUID().toString(), "alice", idp.issuerUri(),
+                List.of("some-other-platform"), now, new Date(now.getTime() + 60_000));
+
+        mockMvc.perform(get("/api/v1/me/authorization")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("invalid_token")))
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void aBrowserPreflightForPutWithIfMatch_isAllowedFromTheFrontendOrigin() throws Exception {
+        mockMvc.perform(options("/api/v1/projects/" + UUID.randomUUID() + "/experience")
+                        .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "PUT")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type,if-match"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, containsString("PUT")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("if-match")));
+    }
+
+    @Test
+    void aBrowserPreflight_fromAnotherOrigin_isRefused() throws Exception {
+        mockMvc.perform(options("/api/v1/projects/" + UUID.randomUUID() + "/experience")
+                        .header(HttpHeaders.ORIGIN, "https://evil.example.com")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "PUT"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void crossOriginResponses_letTheFrontendReadTheETag() throws Exception {
+        mockMvc.perform(get("/api/v1/me/authorization").header(HttpHeaders.ORIGIN, "http://localhost:5173"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString("ETag")));
     }
 
     @Test

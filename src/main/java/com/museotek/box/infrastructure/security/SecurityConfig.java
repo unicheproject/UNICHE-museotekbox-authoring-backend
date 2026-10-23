@@ -1,5 +1,6 @@
 package com.museotek.box.infrastructure.security;
 
+import com.museotek.box.web.error.SecurityErrorHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +35,8 @@ public class SecurityConfig {
     private String allowedOrigins;
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JitUserProvisioningFilter jitFilter) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JitUserProvisioningFilter jitFilter,
+                                           SecurityErrorHandler errorHandler) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -50,6 +52,12 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.decoder(jwtDecoder()))
+                        .authenticationEntryPoint(errorHandler)
+                        .accessDeniedHandler(errorHandler)
+                )
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint(errorHandler)
+                        .accessDeniedHandler(errorHandler)
                 )
                 .addFilterAfter(jitFilter, BearerTokenAuthenticationFilter.class);
         return http.build();
@@ -59,8 +67,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "If-Match"));
+        // Without this the browser hides ETag from the frontend's code (saves send it back as If-Match).
+        configuration.setExposedHeaders(List.of("ETag"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
