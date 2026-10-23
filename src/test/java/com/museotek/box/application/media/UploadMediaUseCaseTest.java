@@ -12,7 +12,6 @@ import com.museotek.box.infrastructure.repository.MediaRepository;
 import com.museotek.box.infrastructure.storage.MediaProperties;
 import com.museotek.box.infrastructure.storage.MediaStorage;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;

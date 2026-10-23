@@ -5,9 +5,9 @@ import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.infrastructure.repository.RuleRepository;
-import com.museotek.box.infrastructure.repository.SceneRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
+import com.museotek.box.infrastructure.repository.SceneRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;

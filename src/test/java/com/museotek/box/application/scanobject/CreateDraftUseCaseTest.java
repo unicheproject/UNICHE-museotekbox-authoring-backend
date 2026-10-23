@@ -1,8 +1,8 @@
 package com.museotek.box.application.scanobject;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
-import com.museotek.box.domain.scanobject.DuplicateRfidTagException;
 import com.museotek.box.domain.scanobject.Draft;
+import com.museotek.box.domain.scanobject.DuplicateRfidTagException;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;

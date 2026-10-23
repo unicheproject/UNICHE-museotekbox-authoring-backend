@@ -1,8 +1,8 @@
 package com.museotek.box.web.scanobject;
 
 import com.museotek.box.application.scanobject.CreateColouredCardUseCase;
-import com.museotek.box.application.scanobject.CreatePrintedImageUseCase;
 import com.museotek.box.application.scanobject.CreateDraftUseCase;
+import com.museotek.box.application.scanobject.CreatePrintedImageUseCase;
 import com.museotek.box.application.scanobject.CreateThreeDPrintedObjectUseCase;
 import com.museotek.box.application.scanobject.DeleteScanObjectUseCase;
 import com.museotek.box.application.scanobject.GetScanObjectQuery;

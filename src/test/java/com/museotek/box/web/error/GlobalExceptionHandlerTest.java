@@ -2,17 +2,16 @@ package com.museotek.box.web.error;
 
 import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.domain.box.BoxNotFoundException;
+import com.museotek.box.domain.box.DuplicateSerialNumberException;
+import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.comment.CommentNotFoundException;
 import com.museotek.box.domain.comment.InvalidCommentException;
-import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
-import com.museotek.box.domain.box.DuplicateSerialNumberException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
 import com.museotek.box.domain.media.MediaInUseException;
 import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.domain.media.MediaTooLargeException;
 import com.museotek.box.domain.media.UnsupportedMediaFileException;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueBadResponseException;
 import com.museotek.box.infrastructure.catalogue.CatalogueConflictException;
@@ -39,6 +38,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.UUID;

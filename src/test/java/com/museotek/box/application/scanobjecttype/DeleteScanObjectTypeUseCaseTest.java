@@ -6,9 +6,9 @@ import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.RuleRepository;
-import com.museotek.box.infrastructure.repository.SceneRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
+import com.museotek.box.infrastructure.repository.SceneRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;

@@ -141,6 +141,29 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <!-- Light formatting only (imports, whitespace, final newline); indentation and line breaks are left
+                 alone. `./mvnw spotless:apply` fixes files, `./mvnw spotless:check` fails on unformatted ones (CI). -->
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>2.43.0</version>
+                <configuration>
+                    <java>
+                        <includes>
+                            <include>src/main/java/**/*.java</include>
+                            <include>src/test/java/**/*.java</include>
+                        </includes>
+                        <!-- IntelliJ's default: all other imports, then java/javax, then static imports. -->
+                        <importOrder>
+                            <order>,javax|java,\#</order>
+                        </importOrder>
+                        <removeUnusedImports/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
+                    <lineEndings>UNIX</lineEndings>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
