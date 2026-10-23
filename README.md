@@ -11,6 +11,29 @@ repository is the **backend only**: the authoring API that lets authors build an
 manage that content, plus the runtime data the physical box reads. It has no UI of
 its own — a separate frontend (Vue) is the authoring client.
 
+## Running it locally
+
+You need Java 21 and Docker. The backend runs directly on your machine. Only its Postgres
+runs in Docker. Keycloak and Catalogue are separate UNICHE services you point it at.
+
+1. Copy `.env.example` to `.env` and set `DB_USERNAME` and `DB_PASSWORD`. `.env` is never
+   committed. If port 5432 is taken (e.g. by a native Postgres), also set `DB_PORT`.
+2. Start the database: `docker compose up -d`.
+3. Give the backend these environment variables (in IntelliJ's run configuration, or exported
+   in your shell). The app refuses to start without the first four:
+   - `DB_USERNAME`, `DB_PASSWORD`: the same as in `.env`
+   - `IDP_ISSUER_URI`: the Keycloak realm whose tokens this backend accepts
+   - `CATALOGUE_BASE_URL`: the UNICHE Catalogue to ask for permissions
+   - `DB_URL`: only if the database is not on `localhost:5432`
+   - `SWAGGER_ENABLED=true`: optional, turns on the API docs at `/museotekbox/swagger-ui.html`
+4. Run `./mvnw spring-boot:run`. The API is under `http://localhost:8080/museotekbox/api/v1`.
+   Liquibase creates the tables on the first start.
+
+Tests: `./mvnw test`. They start their own Postgres with Testcontainers, so Docker must be
+running. They don't need `.env`, Keycloak or Catalogue.
+
+Every other setting is listed in `src/main/resources/application.properties`, with its default.
+
 ## Platform integration: Catalogue
 
 This backend is a pure OAuth2 resource server on the **UNICHE** platform — it does
