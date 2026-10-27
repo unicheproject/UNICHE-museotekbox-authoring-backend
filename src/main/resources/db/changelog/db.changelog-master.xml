@@ -12,5 +12,7 @@
     <include file="sql/05-block-types.sql" relativeToChangelogFile="true"/>
     <include file="sql/06-comments.sql" relativeToChangelogFile="true"/>
     <include file="sql/07-experience-templates.sql" relativeToChangelogFile="true"/>
+    <include file="sql/08-rule-conditions.sql" relativeToChangelogFile="true"/>
+    <include file="sql/09-random-destination.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

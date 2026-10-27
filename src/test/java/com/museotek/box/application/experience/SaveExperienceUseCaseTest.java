@@ -100,8 +100,8 @@ class SaveExperienceUseCaseTest {
 
         BlockDocument block = new BlockDocument("1", "TEXT", 0, "{}", null);
         RuleEffect reply = new RuleEffect("REPLY", null, null, null, "green", "Correct!", null, null, null, null);
-        RuleDocument rule = new RuleDocument("1", 0, new TriggerDocument("SCAN_OTHER", null, null), null,
-                List.of(reply), new DestinationDocument("STAY", null));
+        RuleDocument rule = new RuleDocument("1", 0, new TriggerDocument("SCAN_OTHER", null, null), List.of(),
+                List.of(reply), new DestinationDocument("STAY", null, null));
         SceneDocument scene = new SceneDocument("1", "Scene One", 0, true, null, List.of(block), List.of(rule));
 
         ExperienceView view = useCase.execute(projectId, 0, document(List.of(scene)));
@@ -118,6 +118,7 @@ class SaveExperienceUseCaseTest {
         assertThat(savedRule.getEffects()).containsExactly(reply);
         assertThat(savedRule.getDestinationType()).isEqualTo(RuleDestination.STAY);
         assertThat(savedRule.getTargetSceneKey()).isNull();
+        assertThat(savedRule.getTargetSceneKeys()).isNull();
 
         ArgumentCaptor<Project> savedProject = ArgumentCaptor.forClass(Project.class);
         verify(projectRepository).save(savedProject.capture());

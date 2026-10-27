@@ -56,22 +56,26 @@ public class Rule {
     @Column(name = "trigger_seconds")
     private Integer triggerSeconds;
 
-    // If: null means always.
+    // If: all must hold (AND); empty means always.
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "condition")
-    private RuleCondition condition;
+    @Column(name = "conditions", nullable = false)
+    private List<RuleCondition> conditions = new ArrayList<>();
 
     // Do: in order, possibly none.
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "effects", nullable = false)
     private List<RuleEffect> effects = new ArrayList<>();
 
-    // Then. targetSceneKey is set only for GO_TO; validated against the document by application
-    // code, not a DB foreign key (see the proposal doc).
+    // Then. targetSceneKey is set only for GO_TO, targetSceneKeys only for GO_TO_RANDOM; both
+    // validated against the document by application code, not a DB foreign key (see the proposal doc).
     @Enumerated(EnumType.STRING)
     @Column(name = "destination_type", nullable = false, length = 15)
     private RuleDestination destinationType;
 
     @Column(name = "target_scene_key", length = 64)
     private String targetSceneKey;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "target_scene_keys")
+    private List<String> targetSceneKeys;
 }

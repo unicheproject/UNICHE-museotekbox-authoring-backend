@@ -203,7 +203,7 @@ public class ExperienceDocumentValidator {
         validateRules(document, errors);
     }
 
-    // Rule model v2: when (trigger) ... if (condition) ... do (effects, in order) ... then
+    // Rule model v2: when (trigger) ... if (conditions, all must hold) ... do (effects, in order) ... then
     // (destination). Only structure is refused here. A gap the curator still has to fill (a SCAN
     // with no card chosen yet, a VIDEO_ENDED on a scene without a video) is not an error.
     private void validateRules(ExperienceDocument document, List<String> errors) {
@@ -232,7 +232,7 @@ public class ExperienceDocumentValidator {
                         catchAllRuleKey = rule.ruleKey();
                     }
                 }
-                validateCondition(rule.condition(), declaredVariables, label, errors);
+                validateConditions(rule.conditions(), declaredVariables, label, errors);
                 validateEffects(rule.effects(), declaredVariables, hasScreen, label, errors);
                 validateDestination(rule.destination(), allSceneKeys, label, errors);
             }
@@ -278,25 +278,37 @@ public class ExperienceDocumentValidator {
         return type;
     }
 
+    private void validateConditions(List<RuleCondition> conditions, Map<String, VariableKind> declared, String label,
+                                    List<String> errors) {
+        if (conditions == null) {
+            errors.add(label + " conditions must be a list (empty = always)");
+            return;
+        }
+        for (int i = 0; i < conditions.size(); i++) {
+            validateCondition(conditions.get(i), declared, label + " condition " + (i + 1), errors);
+        }
+    }
+
     private void validateCondition(RuleCondition condition, Map<String, VariableKind> declared, String label, List<String> errors) {
         if (condition == null) {
-            return; // no condition = always
+            errors.add(label + " is empty");
+            return;
         }
         if (CONDITION_VAR_CMP.equals(condition.type())) {
-            checkVariable(condition.variable(), VariableKind.NUMBER, declared, label + " condition", errors);
+            checkVariable(condition.variable(), VariableKind.NUMBER, declared, label, errors);
             if (condition.op() == null || !NUMBER_OPS.contains(condition.op())) {
-                errors.add(label + " condition op '" + condition.op() + "' is not valid (expected one of " + NUMBER_OPS + ")");
+                errors.add(label + " op '" + condition.op() + "' is not valid (expected one of " + NUMBER_OPS + ")");
             }
             if (condition.value() == null || !INTEGER_PATTERN.matcher(condition.value()).matches()) {
-                errors.add(label + " condition value '" + condition.value() + "' is not an integer");
+                errors.add(label + " value '" + condition.value() + "' is not an integer");
             }
         } else if (CONDITION_FLAG_IS.equals(condition.type())) {
-            checkVariable(condition.variable(), VariableKind.FLAG, declared, label + " condition", errors);
+            checkVariable(condition.variable(), VariableKind.FLAG, declared, label, errors);
             if (!isBoolean(condition.value())) {
-                errors.add(label + " condition value '" + condition.value() + "' is not true or false");
+                errors.add(label + " value '" + condition.value() + "' is not true or false");
             }
         } else {
-            errors.add(label + " condition type '" + condition.type() + "' is not valid (expected VAR_CMP or FLAG_IS)");
+            errors.add(label + " type '" + condition.type() + "' is not valid (expected VAR_CMP or FLAG_IS)");
         }
     }
 
@@ -352,7 +364,7 @@ public class ExperienceDocumentValidator {
         }
         RuleDestination type = parseEnum(RuleDestination.class, destination.type());
         if (type == null) {
-            errors.add(label + " destination '" + destination.type() + "' is not valid (expected GO_TO, STAY or END)");
+            errors.add(label + " destination '" + destination.type() + "' is not valid (expected GO_TO, GO_TO_RANDOM, STAY or END)");
             return;
         }
         if (type == RuleDestination.GO_TO) {
@@ -362,6 +374,27 @@ public class ExperienceDocumentValidator {
             }
         } else if (destination.targetSceneKey() != null) {
             errors.add(label + " destination " + type + " can't have a target scene (only GO_TO)");
+        }
+        if (type == RuleDestination.GO_TO_RANDOM) {
+            validateRandomTargets(destination.targetSceneKeys(), allSceneKeys, label, errors);
+        } else if (destination.targetSceneKeys() != null && !destination.targetSceneKeys().isEmpty()) {
+            errors.add(label + " destination " + type + " can't have target scenes (only GO_TO_RANDOM)");
+        }
+    }
+
+    // A random pick needs something to pick from: two or more different scenes, all in this document.
+    private void validateRandomTargets(List<String> keys, Set<String> allSceneKeys, String label, List<String> errors) {
+        if (keys == null || keys.size() < 2) {
+            errors.add(label + " destination GO_TO_RANDOM needs at least 2 target_scene_keys");
+            return;
+        }
+        Set<String> seen = new HashSet<>();
+        for (String key : keys) {
+            if (key == null || !allSceneKeys.contains(key)) {
+                errors.add(label + " target_scene_keys '" + key + "' does not resolve to any scene in this document");
+            } else if (!seen.add(key)) {
+                errors.add(label + " target_scene_keys '" + key + "' is listed more than once");
+            }
         }
     }
 

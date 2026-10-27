@@ -44,7 +44,7 @@ public record ExperienceDocument(
             String ruleKey,
             Integer position,
             TriggerDocument trigger,
-            RuleCondition condition,
+            List<RuleCondition> conditions,
             List<RuleEffect> effects,
             DestinationDocument destination
     ) {
@@ -54,7 +54,7 @@ public record ExperienceDocument(
     public record TriggerDocument(String type, Long scanObjectTypeId, Integer seconds) {
     }
 
-    // targetSceneKey only for GO_TO.
-    public record DestinationDocument(String type, String targetSceneKey) {
+    // targetSceneKey only for GO_TO, targetSceneKeys only for GO_TO_RANDOM.
+    public record DestinationDocument(String type, String targetSceneKey, List<String> targetSceneKeys) {
     }
 }

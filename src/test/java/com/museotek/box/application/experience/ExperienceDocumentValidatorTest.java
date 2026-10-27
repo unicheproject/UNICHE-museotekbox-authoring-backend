@@ -12,6 +12,7 @@ import com.museotek.box.domain.rule.RuleCondition;
 import com.museotek.box.domain.rule.RuleEffect;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -402,7 +403,41 @@ class ExperienceDocumentValidatorTest {
                 .anyMatch(e -> e.contains("rule '2'") && e.contains("op 'ABOUT' is not valid"))
                 .anyMatch(e -> e.contains("rule '2'") && e.contains("value 'x' is not an integer"))
                 .anyMatch(e -> e.contains("rule '3'") && e.contains("not true or false"))
-                .anyMatch(e -> e.contains("rule '4'") && e.contains("condition type 'ALWAYS' is not valid"));
+                .anyMatch(e -> e.contains("rule '4' condition 1 type 'ALWAYS' is not valid"));
+    }
+
+    @Test
+    void compoundConditions_areValidWhenEachOneIs() {
+        // MIET's hidden link: only once both tracks are played.
+        RuleDocument both = ruleWithConditions("1", 0, trigger("SCENE_ENTERED"), List.of(
+                new RuleCondition("FLAG_IS", "seen", null, "true"),
+                new RuleCondition("VAR_CMP", "correct", "GTE", "2")), List.of(reply("green")), STAY);
+        ExperienceDocument document = withVariables(List.of(scene("1", true, List.of(), List.of(both))));
+
+        ExperienceValidationResult result = validator.validate(document, EMPTY_PROJECT_CONTEXT);
+
+        assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
+    void compoundConditions_reportTheBrokenOneByNumber() {
+        RuleDocument secondBad = ruleWithConditions("1", 0, trigger("SCENE_ENTERED"), List.of(
+                new RuleCondition("FLAG_IS", "seen", null, "true"),
+                new RuleCondition("VAR_CMP", "correct", "ABOUT", "2")), List.of(), STAY);
+        List<RuleCondition> withEmpty = new ArrayList<>();
+        withEmpty.add(null);
+        RuleDocument emptyOne = ruleWithConditions("2", 1, trigger("SCENE_ENTERED"), withEmpty, List.of(), STAY);
+        RuleDocument noList = ruleWithConditions("3", 2, trigger("SCENE_ENTERED"), null, List.of(), STAY);
+        ExperienceDocument document = withVariables(List.of(
+                scene("1", true, List.of(), List.of(secondBad, emptyOne, noList))));
+
+        ExperienceValidationResult result = validator.validate(document, EMPTY_PROJECT_CONTEXT);
+
+        assertThat(result.errors())
+                .anyMatch(e -> e.contains("rule '1' condition 2 op 'ABOUT' is not valid"))
+                .noneMatch(e -> e.contains("rule '1' condition 1"))
+                .anyMatch(e -> e.contains("rule '2' condition 1 is empty"))
+                .anyMatch(e -> e.contains("rule '3' conditions must be a list"));
     }
 
     @Test
@@ -427,9 +462,9 @@ class ExperienceDocumentValidatorTest {
 
     @Test
     void invalidDestinations_areRejected() {
-        RuleDocument stayWithTarget = rule("1", 0, trigger("SCENE_ENTERED"), null, List.of(), new DestinationDocument("STAY", "1"));
+        RuleDocument stayWithTarget = rule("1", 0, trigger("SCENE_ENTERED"), null, List.of(), new DestinationDocument("STAY", "1", null));
         RuleDocument noDestination = rule("2", 1, trigger("SCENE_ENTERED"), null, List.of(), null);
-        RuleDocument unknown = rule("3", 2, trigger("SCENE_ENTERED"), null, List.of(), new DestinationDocument("GO_TO_SCENE", null));
+        RuleDocument unknown = rule("3", 2, trigger("SCENE_ENTERED"), null, List.of(), new DestinationDocument("GO_TO_SCENE", null, null));
         ExperienceDocument document = document(List.of(scene("1", true, List.of(), List.of(stayWithTarget, noDestination, unknown))));
 
         ExperienceValidationResult result = validator.validate(document, EMPTY_PROJECT_CONTEXT);
@@ -438,6 +473,44 @@ class ExperienceDocumentValidatorTest {
                 .anyMatch(e -> e.contains("rule '1' destination STAY can't have a target scene"))
                 .anyMatch(e -> e.contains("rule '2' has no destination"))
                 .anyMatch(e -> e.contains("rule '3' destination 'GO_TO_SCENE' is not valid"));
+    }
+
+    @Test
+    void randomDestination_isValidWithTwoOrMoreScenes() {
+        // MIET's dice: the sixth face lets the Box pick one of the key scenes.
+        RuleDocument dice = rule("1", 0, scan(5L), null, List.of(), random(List.of("2", "3")));
+        ExperienceDocument document = document(List.of(
+                scene("1", true, List.of(), List.of(dice)),
+                scene("2", false, List.of(), List.of()),
+                scene("3", false, List.of(), List.of())));
+
+        ExperienceValidationResult result = validator.validate(document, EMPTY_PROJECT_CONTEXT);
+
+        assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
+    void invalidRandomDestinations_areRejected() {
+        RuleDocument oneScene = rule("1", 0, trigger("SCENE_ENTERED"), null, List.of(), random(List.of("2")));
+        RuleDocument noList = rule("2", 1, trigger("SCENE_ENTERED"), null, List.of(), random(null));
+        RuleDocument unknownAndTwice = rule("3", 2, trigger("SCENE_ENTERED"), null, List.of(), random(List.of("2", "99", "2")));
+        RuleDocument singleTargetToo = rule("4", 3, trigger("SCENE_ENTERED"), null, List.of(),
+                new DestinationDocument("GO_TO_RANDOM", "2", List.of("1", "2")));
+        RuleDocument listOnGoTo = rule("5", 4, trigger("SCENE_ENTERED"), null, List.of(),
+                new DestinationDocument("GO_TO", "2", List.of("1", "2")));
+        ExperienceDocument document = document(List.of(
+                scene("1", true, List.of(), List.of(oneScene, noList, unknownAndTwice, singleTargetToo, listOnGoTo)),
+                scene("2", false, List.of(), List.of())));
+
+        ExperienceValidationResult result = validator.validate(document, EMPTY_PROJECT_CONTEXT);
+
+        assertThat(result.errors())
+                .anyMatch(e -> e.contains("rule '1' destination GO_TO_RANDOM needs at least 2 target_scene_keys"))
+                .anyMatch(e -> e.contains("rule '2' destination GO_TO_RANDOM needs at least 2 target_scene_keys"))
+                .anyMatch(e -> e.contains("rule '3' target_scene_keys '99' does not resolve"))
+                .anyMatch(e -> e.contains("rule '3' target_scene_keys '2' is listed more than once"))
+                .anyMatch(e -> e.contains("rule '4' destination GO_TO_RANDOM can't have a target scene (only GO_TO)"))
+                .anyMatch(e -> e.contains("rule '5' destination GO_TO can't have target scenes (only GO_TO_RANDOM)"));
     }
 
     @Test
@@ -529,16 +602,27 @@ class ExperienceDocumentValidatorTest {
         return new BlockDocument(blockKey, "TEXT", 0, "{}", null);
     }
 
+    // Most rules here have one condition or none (null).
     private RuleDocument rule(String ruleKey, int position, TriggerDocument trigger, RuleCondition condition,
                               List<RuleEffect> effects, DestinationDocument destination) {
-        return new RuleDocument(ruleKey, position, trigger, condition, effects, destination);
+        return ruleWithConditions(ruleKey, position, trigger, condition == null ? List.of() : List.of(condition), effects,
+                destination);
     }
 
-    private static final DestinationDocument STAY = new DestinationDocument("STAY", null);
-    private static final DestinationDocument END = new DestinationDocument("END", null);
+    private RuleDocument ruleWithConditions(String ruleKey, int position, TriggerDocument trigger,
+                                            List<RuleCondition> conditions, List<RuleEffect> effects, DestinationDocument destination) {
+        return new RuleDocument(ruleKey, position, trigger, conditions, effects, destination);
+    }
+
+    private static final DestinationDocument STAY = new DestinationDocument("STAY", null, null);
+    private static final DestinationDocument END = new DestinationDocument("END", null, null);
 
     private static DestinationDocument goTo(String sceneKey) {
-        return new DestinationDocument("GO_TO", sceneKey);
+        return new DestinationDocument("GO_TO", sceneKey, null);
+    }
+
+    private static DestinationDocument random(List<String> sceneKeys) {
+        return new DestinationDocument("GO_TO_RANDOM", null, sceneKeys);
     }
 
     private static TriggerDocument trigger(String type) {

@@ -1,7 +1,8 @@
 package com.museotek.box.domain.rule;
 
 /**
- * The optional "if" of a rule, tested against the experience's variables. Two types:
+ * One "if" of a rule, tested against the experience's variables. A rule has a list of them and runs
+ * only when all hold (AND); an empty list means always. OR is two rules. Two types:
  * <ul>
  *   <li>{@code VAR_CMP}: a {@code NUMBER} variable compared with {@code value} (an integer) using
  *       {@code op}: {@code GTE}, {@code LTE}, {@code GT}, {@code LT}, {@code EQ} or {@code NEQ}.

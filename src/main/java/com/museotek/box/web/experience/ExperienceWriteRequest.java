@@ -81,19 +81,21 @@ public record ExperienceWriteRequest(
         }
     }
 
-    // condition and effects bind straight to the domain value records: they are plain strings and
-    // numbers, checked by ExperienceDocumentValidator like the rest of the document.
+    // conditions and effects bind straight to the domain value records: they are plain strings and
+    // numbers, checked by ExperienceDocumentValidator like the rest of the document. conditions may
+    // be left out (= always).
     public record RuleRequest(
             @NotBlank String ruleKey,
             @NotNull Integer position,
             @NotNull @Valid TriggerRequest trigger,
-            RuleCondition condition,
+            List<RuleCondition> conditions,
             @NotNull List<RuleEffect> effects,
             @NotNull @Valid DestinationRequest destination
     ) {
         ExperienceDocument.RuleDocument toDocument() {
             return new ExperienceDocument.RuleDocument(
-                    ruleKey, position, trigger.toDocument(), condition, effects, destination.toDocument());
+                    ruleKey, position, trigger.toDocument(), conditions == null ? List.of() : conditions, effects,
+                    destination.toDocument());
         }
     }
 
@@ -103,9 +105,9 @@ public record ExperienceWriteRequest(
         }
     }
 
-    public record DestinationRequest(@NotBlank String type, String targetSceneKey) {
+    public record DestinationRequest(@NotBlank String type, String targetSceneKey, List<String> targetSceneKeys) {
         ExperienceDocument.DestinationDocument toDocument() {
-            return new ExperienceDocument.DestinationDocument(type, targetSceneKey);
+            return new ExperienceDocument.DestinationDocument(type, targetSceneKey, targetSceneKeys);
         }
     }
 

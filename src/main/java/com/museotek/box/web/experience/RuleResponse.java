@@ -12,7 +12,7 @@ public record RuleResponse(
         String ruleKey,
         Integer position,
         TriggerResponse trigger,
-        RuleCondition condition,
+        List<RuleCondition> conditions,
         List<RuleEffect> effects,
         DestinationResponse destination
 ) {
@@ -20,7 +20,7 @@ public record RuleResponse(
     public record TriggerResponse(String type, Long scanObjectTypeId, Integer seconds) {
     }
 
-    public record DestinationResponse(String type, String targetSceneKey) {
+    public record DestinationResponse(String type, String targetSceneKey, List<String> targetSceneKeys) {
     }
 
     public static RuleResponse from(Rule rule) {
@@ -32,7 +32,8 @@ public record RuleResponse(
             scanObjectTypeId = null;
         }
         TriggerResponse trigger = new TriggerResponse(rule.getTriggerType().name(), scanObjectTypeId, rule.getTriggerSeconds());
-        DestinationResponse destination = new DestinationResponse(rule.getDestinationType().name(), rule.getTargetSceneKey());
-        return new RuleResponse(rule.getRuleKey(), rule.getPosition(), trigger, rule.getCondition(), rule.getEffects(), destination);
+        DestinationResponse destination = new DestinationResponse(rule.getDestinationType().name(), rule.getTargetSceneKey(),
+                rule.getTargetSceneKeys());
+        return new RuleResponse(rule.getRuleKey(), rule.getPosition(), trigger, rule.getConditions(), rule.getEffects(), destination);
     }
 }

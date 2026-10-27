@@ -281,10 +281,11 @@ public class SaveExperienceUseCase {
         ScanObjectType scanObjectType = scanObjectSupport.resolveType(orgId, ruleDoc.trigger().scanObjectTypeId());
         rule.setScanObjectType(scanObjectType);
         rule.setTriggerSeconds(ruleDoc.trigger().seconds());
-        rule.setCondition(ruleDoc.condition());
+        rule.setConditions(new ArrayList<>(ruleDoc.conditions()));
         rule.setEffects(new ArrayList<>(ruleDoc.effects()));
         rule.setDestinationType(RuleDestination.valueOf(ruleDoc.destination().type()));
         rule.setTargetSceneKey(ruleDoc.destination().targetSceneKey());
+        rule.setTargetSceneKeys(ruleDoc.destination().targetSceneKeys());
         return ruleRepository.save(rule);
     }
 
