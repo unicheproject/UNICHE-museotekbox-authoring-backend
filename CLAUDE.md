@@ -71,7 +71,10 @@ token needed).
 - Skipping either is a cross-tenant bypass: nothing else checks it. Every role rule has a test.
 
 **Personal data (GDPR):** we store the JWT subject, email, username, display name and first/last seen
-time of users (`users`), and the author's subject and name on comments.
+time of users (`users`), the author's subject and name on comments (`comments.author_subject`, `author_name`), and the
+subject of whoever resolved a comment, uploaded a media file or created a template (`comments.resolved_by`,
+`media.uploaded_by`, `experience_templates.created_by`). Export and erase: `scripts/gdpr/` (update it when a column like
+these is added).
 No personal data in logs, URLs or error messages; no production data in development or tests. Say so whenever a change
 adds personal data or a new purpose. This is engineering practice, not legal advice.
 
@@ -167,8 +170,8 @@ disagree, this file wins and the document is fixed.
 - Dependency vulnerabilities: GitHub Dependabot (`.github/dependabot.yml`); alerts are switched on in the repo settings.
 
 **Open points: do not guess, ask.**
-- GDPR export/erase: a written SQL procedure (users row; author, resolver, uploader and creator subjects anonymised),
-  after the platform team says whether erasure is coordinated across UNICHE tools.
+- GDPR export/erase: SQL scripts in `scripts/gdpr/` (drafted 2026-10-26). Still waiting on the platform team: is erasure
+  coordinated across UNICHE tools, and should comment bodies be kept once the author is anonymised?
 - Static analysis is not configured. Secret detection runs in CI (gitleaks, `secrets` job in `ci.yml`).
 - Should platform admins be able to edit or delete global templates?
 - Box device API (box auth, downloading published experiences and media, rule evaluation order) is not designed yet.
