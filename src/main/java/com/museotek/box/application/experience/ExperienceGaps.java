@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
  * an experience it can't play.
  * <ul>
  *   <li>never saved;</li>
+ *   <li>the start card is the Exit card or a universal card, or a rule waits for the Exit card;</li>
  *   <li>the start scene has no start card (its init card type);</li>
  *   <li>a media block with no file chosen;</li>
  *   <li>a SCAN rule with no card chosen;</li>
@@ -57,6 +58,12 @@ public class ExperienceGaps {
             if (scene.isStart() && scene.getInitCardType() == null) {
                 gaps.add(label(scene) + " is the start scene but has no start card");
             }
+            if (scene.isStart() && scene.getInitCardType() != null && scene.getInitCardType().isExit()) {
+                gaps.add(label(scene) + " starts with the Exit card, which only ends visits");
+            }
+            if (scene.isStart() && scene.getInitCardType() != null && scene.getInitCardType().isUniversal()) {
+                gaps.add(label(scene) + " starts with a universal card, which works in every experience");
+            }
         }
 
         List<Long> sceneIds = scenes.stream().map(Scene::getId).toList();
@@ -71,6 +78,9 @@ public class ExperienceGaps {
             String ruleLabel = "rule '" + rule.getRuleKey() + "' in " + label(sceneById.get(sceneId));
             if (rule.getTriggerType() == RuleTrigger.SCAN && rule.getScanObjectType() == null) {
                 gaps.add(ruleLabel + " waits for a card, but no card is chosen");
+            }
+            if (rule.getScanObjectType() != null && rule.getScanObjectType().isExit()) {
+                gaps.add(ruleLabel + " waits for the Exit card, which always ends the visit instead");
             }
             if (rule.getTriggerType() == RuleTrigger.VIDEO_ENDED && !scenesWithVideo.contains(sceneId)) {
                 gaps.add(ruleLabel + " waits for a video to end, but the scene plays no video");

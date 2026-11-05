@@ -29,4 +29,12 @@ public class ScanObjectType {
 
     @Column(name = "name", nullable = false, length = 255)
     private String name;
+
+    // Works in any experience (Right/Wrong, answers A/B/C); what it does depends on the current scene's rules.
+    @Column(name = "universal", nullable = false)
+    private boolean universal;
+
+    // The org's Exit card: ends any visit, in any scene. At most one per org.
+    @Column(name = "is_exit", nullable = false)
+    private boolean exit;
 }

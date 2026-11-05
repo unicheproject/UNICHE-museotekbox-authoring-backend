@@ -98,6 +98,17 @@ class PublishedExperienceRepositoryTest {
     }
 
     @Test
+    void latestCopyStartsWith_looksOnlyAtTheLatestCopy() {
+        Project project = project("Quiz");
+        em.persist(copy(project, 1, RED, List.of()));
+        em.persist(copy(project, 2, BLUE, List.of()));
+        em.flush();
+
+        assertThat(publishedExperienceRepository.latestCopyStartsWith(BLUE)).isTrue();
+        assertThat(publishedExperienceRepository.latestCopyStartsWith(RED)).isFalse();
+    }
+
+    @Test
     void neverPublished_hasNoLatestCopy() {
         assertThat(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(project().getId())).isEmpty();
     }

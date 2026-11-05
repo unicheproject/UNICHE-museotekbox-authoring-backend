@@ -21,14 +21,16 @@ class CreateScanObjectTypeUseCaseTest {
 
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
-    private final CreateScanObjectTypeUseCase useCase = new CreateScanObjectTypeUseCase(orgAccessGuard, scanObjectTypeRepository);
+    private final SpecialCardTypes specialCardTypes = mock(SpecialCardTypes.class);
+    private final CreateScanObjectTypeUseCase useCase =
+            new CreateScanObjectTypeUseCase(orgAccessGuard, scanObjectTypeRepository, specialCardTypes);
 
     @Test
     void success_savesTypeScopedToOrg() {
         UUID orgId = UUID.randomUUID();
         when(scanObjectTypeRepository.save(any(ScanObjectType.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ScanObjectType result = useCase.execute(orgId, "Muses");
+        ScanObjectType result = useCase.execute(orgId, "Muses", true, false);
 
         verify(orgAccessGuard).requireAccess(orgId);
         ArgumentCaptor<ScanObjectType> captor = ArgumentCaptor.forClass(ScanObjectType.class);
@@ -36,6 +38,9 @@ class CreateScanObjectTypeUseCaseTest {
         assertThat(captor.getValue().getOrgId()).isEqualTo(orgId);
         assertThat(captor.getValue().getName()).isEqualTo("Muses");
         assertThat(result.getName()).isEqualTo("Muses");
+        assertThat(result.isUniversal()).isTrue();
+        assertThat(result.isExit()).isFalse();
+        verify(specialCardTypes).check(result, false, false);
     }
 
     @Test
@@ -43,7 +48,7 @@ class CreateScanObjectTypeUseCaseTest {
         UUID orgId = UUID.randomUUID();
         when(orgAccessGuard.requireAccess(orgId)).thenThrow(new CatalogueForbiddenException("not a member"));
 
-        assertThatThrownBy(() -> useCase.execute(orgId, "Muses"))
+        assertThatThrownBy(() -> useCase.execute(orgId, "Muses", false, false))
                 .isInstanceOf(CatalogueForbiddenException.class);
 
         verifyNoInteractions(scanObjectTypeRepository);

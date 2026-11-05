@@ -49,7 +49,8 @@ public class ScanObjectTypeController {
     public ResponseEntity<ScanObjectTypeResponse> createScanObjectType(
             @PathVariable UUID orgId, @Valid @RequestBody CreateScanObjectTypeRequest request
     ) {
-        ScanObjectType created = createScanObjectTypeUseCase.execute(orgId, request.name());
+        ScanObjectType created = createScanObjectTypeUseCase.execute(orgId, request.name(),
+                Boolean.TRUE.equals(request.universal()), Boolean.TRUE.equals(request.exit()));
         return ResponseEntity.status(HttpStatus.CREATED).body(ScanObjectTypeResponse.from(created));
     }
 
@@ -71,7 +72,8 @@ public class ScanObjectTypeController {
     public ScanObjectTypeResponse updateScanObjectType(
             @PathVariable UUID orgId, @PathVariable Long scanObjectTypeId, @Valid @RequestBody UpdateScanObjectTypeRequest request
     ) {
-        ScanObjectType updated = updateScanObjectTypeUseCase.execute(orgId, scanObjectTypeId, request.name());
+        ScanObjectType updated = updateScanObjectTypeUseCase.execute(orgId, scanObjectTypeId, request.name(),
+                request.universal(), request.exit());
         return ScanObjectTypeResponse.from(updated);
     }
 

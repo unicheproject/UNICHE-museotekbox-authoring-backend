@@ -33,6 +33,13 @@ public interface PublishedExperienceRepository extends JpaRepository<PublishedEx
             """)
     List<String> findBoxNamesWhereStartCardIsTaken(@Param("projectId") UUID projectId, @Param("cardTypeId") Long cardTypeId);
 
+    @Query("""
+            select count(pe) > 0 from PublishedExperience pe
+            where pe.startCardTypeId = :cardTypeId
+              and pe.version = (select max(v.version) from PublishedExperience v where v.project = pe.project)
+            """)
+    boolean latestCopyStartsWith(@Param("cardTypeId") Long cardTypeId);
+
     // Only the latest copy counts: older versions are never played. Deleted experiences count, like their drafts do.
     @Query(value = """
             SELECT EXISTS (SELECT 1 FROM published_experiences pe

@@ -40,8 +40,8 @@ the current experience document instead.
 ## Experience
 
 - `EXPERIENCE_NOT_READY` (422): the experience can't be published yet. Saving a draft with gaps is
-  allowed. `details` lists the gaps, e.g. a start scene without a start card or a video block
-  without a video.
+  allowed. `details` lists the gaps, e.g. a start scene without a start card, a video block
+  without a video, the Exit or a universal card as the start card, or a rule waiting for the Exit card.
 - `START_CARD_IN_USE` (409): on assign or publish, another experience on the same box already starts with
   this card (its latest published version).
 - `EXPERIENCE_NOT_PUBLISHED` (404): the experience has never been published (`GET /projects/{id}/published`).
@@ -60,7 +60,11 @@ the current experience document instead.
 - `SCAN_OBJECT_NOT_FOUND` (404): no such scan object in this organisation.
 - `DUPLICATE_RFID_TAG` (409): the RFID tag is already used, in this or any other organisation.
 - `SCAN_OBJECT_TYPE_NOT_FOUND` (404): no such scan object type in this organisation.
-- `SCAN_OBJECT_TYPE_IN_USE` (409): the type can't be deleted because a scan object, scene or rule still uses it.
+- `SCAN_OBJECT_TYPE_IN_USE` (409): the type can't be deleted because a scan object, scene, rule or published
+  experience still uses it; or it can't become the Exit card (a published experience uses it) or universal
+  (it starts a published experience).
+- `EXIT_CARD_TYPE_TAKEN` (409): the organisation already has an Exit card type; there can be only one.
+- `INVALID_SCAN_OBJECT_TYPE` (400): a card type can't be both universal and the Exit card.
 
 ## Media
 

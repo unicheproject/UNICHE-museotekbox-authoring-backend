@@ -78,6 +78,25 @@ class ExperienceGapsTest {
                 "rule '3' in scene '1' (Start) plays a sound on the Box, but no sound is chosen");
     }
 
+    @Test
+    void specialCards_inTheWrongPlace_areGaps() {
+        ScanObjectType exit = card(9L);
+        exit.setExit(true);
+        ScanObjectType right = card(10L);
+        right.setUniversal(true);
+        Scene start = scene(1L, "1", "Start", true, exit);
+        Scene other = scene(2L, "2", "Quiz", true, right);
+        stubScenes(start, other);
+        when(ruleRepository.findBySceneIdInOrderByPositionAsc(anyCollection())).thenReturn(List.of(
+                rule(start, "1", RuleTrigger.SCAN, exit, List.of()),
+                rule(start, "2", RuleTrigger.SCAN, right, List.of())));
+
+        assertThat(gaps.find(projectId)).containsExactly(
+                "scene '1' (Start) starts with the Exit card, which only ends visits",
+                "scene '2' (Quiz) starts with a universal card, which works in every experience",
+                "rule '1' in scene '1' (Start) waits for the Exit card, which always ends the visit instead");
+    }
+
     private void stubScenes(Scene... scenes) {
         when(sceneRepository.findByProjectIdOrderByPositionAsc(projectId)).thenReturn(List.of(scenes));
     }

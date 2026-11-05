@@ -21,6 +21,8 @@ import com.museotek.box.domain.media.UnsupportedMediaFileException;
 import com.museotek.box.domain.publish.ExperienceNotPublishedException;
 import com.museotek.box.domain.publish.UnpublishedExperienceNotAssignableException;
 import com.museotek.box.domain.scanobject.DuplicateRfidTagException;
+import com.museotek.box.domain.scanobject.ExitCardTypeTakenException;
+import com.museotek.box.domain.scanobject.InvalidScanObjectTypeException;
 import com.museotek.box.domain.scanobject.ScanObjectNotFoundException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
@@ -228,6 +230,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorEnvelope handleScanObjectTypeInUse(ScanObjectTypeInUseException e) {
         return new ErrorEnvelope("SCAN_OBJECT_TYPE_IN_USE", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(ExitCardTypeTakenException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorEnvelope handleExitCardTypeTaken(ExitCardTypeTakenException e) {
+        return new ErrorEnvelope("EXIT_CARD_TYPE_TAKEN", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(InvalidScanObjectTypeException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorEnvelope handleInvalidScanObjectType(InvalidScanObjectTypeException e) {
+        return new ErrorEnvelope("INVALID_SCAN_OBJECT_TYPE", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(CatalogueForbiddenException.class)

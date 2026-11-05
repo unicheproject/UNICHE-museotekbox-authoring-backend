@@ -67,8 +67,8 @@ class RequestLengthLimitsTest {
                 Arguments.of(new UpdatePrintedImageRequest(TOO_LONG, null, false, null, "url"), "name"),
                 Arguments.of(new CreateThreeDPrintedObjectRequest("Model", null, false, null, TOO_LONG), "modelRef"),
                 Arguments.of(new UpdateThreeDPrintedObjectRequest("Model", TOO_LONG, false, null, "ref"), "rfidTag"),
-                Arguments.of(new CreateScanObjectTypeRequest(TOO_LONG), "name"),
-                Arguments.of(new UpdateScanObjectTypeRequest(TOO_LONG), "name"));
+                Arguments.of(new CreateScanObjectTypeRequest(TOO_LONG, null, null), "name"),
+                Arguments.of(new UpdateScanObjectTypeRequest(TOO_LONG, null, null), "name"));
     }
 
     @ParameterizedTest
@@ -83,7 +83,7 @@ class RequestLengthLimitsTest {
                 new CreateColouredCardRequest(OK, OK, false, null, CardColour.RED),
                 new CreatePrintedImageRequest(OK, OK, false, null, OK),
                 new CreateThreeDPrintedObjectRequest(OK, OK, false, null, OK),
-                new CreateScanObjectTypeRequest(OK));
+                new CreateScanObjectTypeRequest(OK, null, null));
     }
 
     @ParameterizedTest

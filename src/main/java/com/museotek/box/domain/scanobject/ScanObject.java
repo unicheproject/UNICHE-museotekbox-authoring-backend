@@ -46,6 +46,7 @@ public abstract class ScanObject {
     @Column(name = "rfid_tag", unique = true, length = 255)
     private String rfidTag;
 
+    // Not used: "universal" is a flag on the card type, so all cards of a type agree. Kept for the API.
     @Column(name = "reusable", nullable = false)
     private boolean reusable;
 }
