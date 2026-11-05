@@ -1,28 +1,27 @@
 package com.museotek.box.application.box;
 
-import com.museotek.box.application.experience.ExperienceGaps;
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
 import com.museotek.box.application.projectaccess.ProjectAccessGuard;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxNotFoundException;
-import com.museotek.box.domain.box.ExperienceNotReadyException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
+import com.museotek.box.domain.publish.PublishedExperience;
+import com.museotek.box.domain.publish.UnpublishedExperienceNotAssignableException;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
-import com.museotek.box.infrastructure.repository.SceneRepository;
+import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
- * Makes a project available on a Box: publishing. Org managers only. Idempotent: assigning an
- * already-assigned project is a no-op. The experience must have no gaps ({@link ExperienceGaps}),
- * and its start card must not already start another experience on the Box, since that card is
- * how a visitor picks it ({@link BoxStartCards}). The Box's current experience is not touched:
- * the Box sets it itself when a start card is placed.
+ * Chooses a Box for an experience: the Box then plays its latest published copy. Org managers only.
+ * Idempotent: assigning an already-assigned project is a no-op. The experience must have been
+ * published (the copy was checked for gaps then), and the copy's start card must not already start
+ * another experience on the Box, since that card is how a visitor picks it ({@link BoxStartCards}).
+ * The Box's current experience is not touched: the Box sets it itself when a start card is placed.
  */
 @Service
 public class AssignProjectToBoxUseCase {
@@ -31,8 +30,7 @@ public class AssignProjectToBoxUseCase {
     private final ProjectAccessGuard projectAccessGuard;
     private final BoxRepository boxRepository;
     private final ProjectRepository projectRepository;
-    private final SceneRepository sceneRepository;
-    private final ExperienceGaps experienceGaps;
+    private final PublishedExperienceRepository publishedExperienceRepository;
     private final BoxStartCards boxStartCards;
 
     public AssignProjectToBoxUseCase(
@@ -40,16 +38,14 @@ public class AssignProjectToBoxUseCase {
             ProjectAccessGuard projectAccessGuard,
             BoxRepository boxRepository,
             ProjectRepository projectRepository,
-            SceneRepository sceneRepository,
-            ExperienceGaps experienceGaps,
+            PublishedExperienceRepository publishedExperienceRepository,
             BoxStartCards boxStartCards
     ) {
         this.orgAccessGuard = orgAccessGuard;
         this.projectAccessGuard = projectAccessGuard;
         this.boxRepository = boxRepository;
         this.projectRepository = projectRepository;
-        this.sceneRepository = sceneRepository;
-        this.experienceGaps = experienceGaps;
+        this.publishedExperienceRepository = publishedExperienceRepository;
         this.boxStartCards = boxStartCards;
     }
 
@@ -70,14 +66,10 @@ public class AssignProjectToBoxUseCase {
             return;
         }
 
-        List<String> gaps = experienceGaps.find(projectId);
-        if (!gaps.isEmpty()) {
-            throw new ExperienceNotReadyException("Experience " + projectId + " has gaps and can't be assigned to a box yet", gaps);
-        }
-        // No gaps means the start scene exists and has a start card.
-        Long startCardTypeId = sceneRepository.findByProjectIdAndStartTrue(projectId).orElseThrow()
-                .getInitCardType().getId();
-        boxStartCards.requireFreeOnBox(boxId, projectId, startCardTypeId);
+        PublishedExperience latest = publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId)
+                .orElseThrow(() -> new UnpublishedExperienceNotAssignableException(
+                        "Experience " + projectId + " has never been published, so it can't be assigned to a box yet"));
+        boxStartCards.requireFreeOnBox(boxId, projectId, latest.getStartCardTypeId());
 
         box.getAssignedProjects().add(projectRepository.getReferenceById(projectId));
     }

@@ -1,7 +1,5 @@
 package com.museotek.box.application.experience;
 
-import com.museotek.box.application.box.BoxStartCards;
-import com.museotek.box.application.box.PublishedExperienceCheck;
 import com.museotek.box.application.experience.ExperienceDocument.BlockDocument;
 import com.museotek.box.application.experience.ExperienceDocument.DestinationDocument;
 import com.museotek.box.application.experience.ExperienceDocument.FlowDocument;
@@ -13,8 +11,6 @@ import com.museotek.box.application.projectaccess.ProjectAccessGuard;
 import com.museotek.box.application.scanobject.ScanObjectSupport;
 import com.museotek.box.domain.block.Block;
 import com.museotek.box.domain.block.BlockType;
-import com.museotek.box.domain.box.ExperienceNotReadyException;
-import com.museotek.box.domain.box.StartCardInUseException;
 import com.museotek.box.domain.experience.ExperienceFlow;
 import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.experience.ExperienceValidationException;
@@ -54,10 +50,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -76,13 +69,10 @@ class SaveExperienceUseCaseTest {
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final ScanObjectSupport scanObjectSupport = new ScanObjectSupport(scanObjectRepository, scanObjectTypeRepository);
     private final ExperienceDocumentValidator validator = new ExperienceDocumentValidator();
-    private final BoxStartCards boxStartCards = mock(BoxStartCards.class);
-    private final PublishedExperienceCheck publishedExperienceCheck = mock(PublishedExperienceCheck.class);
 
     private final SaveExperienceUseCase useCase = new SaveExperienceUseCase(
             projectAccessGuard, projectRepository, sceneRepository, blockRepository, ruleRepository,
-            experienceFlowRepository, experienceVariableRepository, mediaRepository, scanObjectSupport, validator,
-            boxStartCards, publishedExperienceCheck);
+            experienceFlowRepository, experienceVariableRepository, mediaRepository, scanObjectSupport, validator);
 
     private static final FlowDocument FLOW = new FlowDocument(1, "{\"details\":{},\"islands\":[]}");
 
@@ -123,38 +113,6 @@ class SaveExperienceUseCaseTest {
         ArgumentCaptor<Project> savedProject = ArgumentCaptor.forClass(Project.class);
         verify(projectRepository).save(savedProject.capture());
         assertThat(savedProject.getValue().getDocVersion()).isEqualTo(1);
-    }
-
-    @Test
-    void startCardTakenOnAnAssignedBox_isRefusedBeforeAnythingIsWritten() {
-        Project project = project(0, 1, 1, 1);
-        stubAccessAndEmptyProject(project);
-        doThrow(new StartCardInUseException("taken")).when(boxStartCards).requireFreeOnAssignedBoxes(projectId, 7L);
-        SceneDocument scene = new SceneDocument("1", "Start", 0, true, 7L, List.of(), List.of());
-
-        assertThatThrownBy(() -> useCase.execute(projectId, 0, document(List.of(scene))))
-                .isInstanceOf(StartCardInUseException.class);
-
-        verify(sceneRepository, never()).save(any());
-        verify(projectRepository, never()).save(any());
-    }
-
-    @Test
-    void publishedExperienceLeftWithGaps_isRefusedAfterTheRowsAreWritten() {
-        Project project = project(0, 1, 1, 1);
-        stubAccessAndEmptyProject(project);
-        doThrow(new ExperienceNotReadyException("published", List.of("a gap")))
-                .when(publishedExperienceCheck).requireNoGapsIfPublished(projectId);
-        SceneDocument scene = new SceneDocument("1", "Start", 0, true, null, List.of(), List.of());
-
-        assertThatThrownBy(() -> useCase.execute(projectId, 0, document(List.of(scene))))
-                .isInstanceOf(ExperienceNotReadyException.class);
-
-        // The check reads what was just written; the transaction then rolls all of it back.
-        var order = inOrder(projectRepository, publishedExperienceCheck);
-        order.verify(projectRepository).save(any());
-        order.verify(projectRepository).flush();
-        order.verify(publishedExperienceCheck).requireNoGapsIfPublished(projectId);
     }
 
     @Test

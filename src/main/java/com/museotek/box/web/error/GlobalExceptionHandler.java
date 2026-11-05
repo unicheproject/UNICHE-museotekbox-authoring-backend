@@ -19,6 +19,7 @@ import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.domain.media.MediaTooLargeException;
 import com.museotek.box.domain.media.UnsupportedMediaFileException;
 import com.museotek.box.domain.publish.ExperienceNotPublishedException;
+import com.museotek.box.domain.publish.UnpublishedExperienceNotAssignableException;
 import com.museotek.box.domain.scanobject.DuplicateRfidTagException;
 import com.museotek.box.domain.scanobject.ScanObjectNotFoundException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
@@ -99,6 +100,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ExperienceNotPublishedException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorEnvelope handleExperienceNotPublished(ExperienceNotPublishedException e) {
+        return new ErrorEnvelope("EXPERIENCE_NOT_PUBLISHED", e.getMessage(), List.of(), requestId());
+    }
+
+    // The more specific handler wins over the 404 one above.
+    @ExceptionHandler(UnpublishedExperienceNotAssignableException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ErrorEnvelope handleUnpublishedNotAssignable(UnpublishedExperienceNotAssignableException e) {
         return new ErrorEnvelope("EXPERIENCE_NOT_PUBLISHED", e.getMessage(), List.of(), requestId());
     }
 

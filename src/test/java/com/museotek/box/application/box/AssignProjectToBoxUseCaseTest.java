@@ -1,22 +1,21 @@
 package com.museotek.box.application.box;
 
-import com.museotek.box.application.experience.ExperienceGaps;
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
 import com.museotek.box.application.orgaccess.OrgManagerRequiredException;
 import com.museotek.box.application.projectaccess.ProjectAccessGuard;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxNotFoundException;
-import com.museotek.box.domain.box.ExperienceNotReadyException;
 import com.museotek.box.domain.box.ProjectNotInBoxOrgException;
 import com.museotek.box.domain.box.StartCardInUseException;
+import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.project.Project;
-import com.museotek.box.domain.scanobject.ScanObjectType;
-import com.museotek.box.domain.scene.Scene;
+import com.museotek.box.domain.publish.PublishedExperience;
+import com.museotek.box.domain.publish.UnpublishedExperienceNotAssignableException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
-import com.museotek.box.infrastructure.repository.SceneRepository;
+import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -38,11 +37,10 @@ class AssignProjectToBoxUseCaseTest {
     private final ProjectAccessGuard projectAccessGuard = mock(ProjectAccessGuard.class);
     private final BoxRepository boxRepository = mock(BoxRepository.class);
     private final ProjectRepository projectRepository = mock(ProjectRepository.class);
-    private final SceneRepository sceneRepository = mock(SceneRepository.class);
-    private final ExperienceGaps experienceGaps = mock(ExperienceGaps.class);
+    private final PublishedExperienceRepository publishedExperienceRepository = mock(PublishedExperienceRepository.class);
     private final BoxStartCards boxStartCards = mock(BoxStartCards.class);
     private final AssignProjectToBoxUseCase useCase = new AssignProjectToBoxUseCase(
-            orgAccessGuard, projectAccessGuard, boxRepository, projectRepository, sceneRepository, experienceGaps, boxStartCards);
+            orgAccessGuard, projectAccessGuard, boxRepository, projectRepository, publishedExperienceRepository, boxStartCards);
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID projectId = UUID.randomUUID();
@@ -54,8 +52,8 @@ class AssignProjectToBoxUseCaseTest {
         when(boxRepository.findByIdAndOrgId(1L, orgId)).thenReturn(Optional.of(box));
         when(projectAccessGuard.requireAccess(projectId)).thenReturn(catalogueProject(orgId));
         when(projectRepository.getReferenceById(projectId)).thenReturn(project);
-        when(experienceGaps.find(projectId)).thenReturn(List.of());
-        when(sceneRepository.findByProjectIdAndStartTrue(projectId)).thenReturn(Optional.of(startSceneWithCard(7L)));
+        when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId))
+                .thenReturn(Optional.of(copyStartingWith(project, 7L)));
 
         useCase.execute(orgId, 1L, projectId);
 
@@ -75,20 +73,18 @@ class AssignProjectToBoxUseCaseTest {
         useCase.execute(orgId, 1L, projectId);
 
         assertThat(box.getAssignedProjects()).containsExactly(project);
-        verifyNoInteractions(experienceGaps, boxStartCards);
+        verifyNoInteractions(publishedExperienceRepository, boxStartCards);
     }
 
     @Test
-    void experienceWithGaps_isRefusedWithTheGaps() {
+    void neverPublished_isRefused() {
         Box box = new Box();
         when(boxRepository.findByIdAndOrgId(1L, orgId)).thenReturn(Optional.of(box));
         when(projectAccessGuard.requireAccess(projectId)).thenReturn(catalogueProject(orgId));
-        when(experienceGaps.find(projectId)).thenReturn(List.of("scene '1' (Start) is the start scene but has no start card"));
+        when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.execute(orgId, 1L, projectId))
-                .isInstanceOf(ExperienceNotReadyException.class)
-                .extracting(e -> ((ExperienceNotReadyException) e).getGaps())
-                .isEqualTo(List.of("scene '1' (Start) is the start scene but has no start card"));
+                .isInstanceOf(UnpublishedExperienceNotAssignableException.class);
 
         assertThat(box.getAssignedProjects()).isEmpty();
         verifyNoInteractions(boxStartCards);
@@ -99,8 +95,8 @@ class AssignProjectToBoxUseCaseTest {
         Box box = new Box();
         when(boxRepository.findByIdAndOrgId(1L, orgId)).thenReturn(Optional.of(box));
         when(projectAccessGuard.requireAccess(projectId)).thenReturn(catalogueProject(orgId));
-        when(experienceGaps.find(projectId)).thenReturn(List.of());
-        when(sceneRepository.findByProjectIdAndStartTrue(projectId)).thenReturn(Optional.of(startSceneWithCard(7L)));
+        when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId))
+                .thenReturn(Optional.of(copyStartingWith(projectWithId(projectId), 7L)));
         doThrow(new StartCardInUseException("taken")).when(boxStartCards).requireFreeOnBox(1L, projectId, 7L);
 
         assertThatThrownBy(() -> useCase.execute(orgId, 1L, projectId)).isInstanceOf(StartCardInUseException.class);
@@ -149,13 +145,9 @@ class AssignProjectToBoxUseCaseTest {
         verifyNoInteractions(boxRepository);
     }
 
-    private static Scene startSceneWithCard(Long cardTypeId) {
-        ScanObjectType card = new ScanObjectType();
-        card.setId(cardTypeId);
-        Scene scene = new Scene();
-        scene.setStart(true);
-        scene.setInitCardType(card);
-        return scene;
+    private static PublishedExperience copyStartingWith(Project project, Long cardTypeId) {
+        return new PublishedExperience(project, 1, "Wing", ExperienceOutput.DISPLAY, cardTypeId, "{}",
+                List.of(), List.of(cardTypeId), Instant.now(), "someone");
     }
 
     private static Project projectWithId(UUID id) {

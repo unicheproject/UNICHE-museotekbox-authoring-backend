@@ -7,6 +7,7 @@ import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.BlockRepository;
 import com.museotek.box.infrastructure.repository.MediaRepository;
+import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
 import com.museotek.box.infrastructure.repository.RuleRepository;
 import com.museotek.box.infrastructure.storage.MediaStorage;
 import org.junit.jupiter.api.Test;
@@ -31,8 +32,9 @@ class DeleteMediaUseCaseTest {
     private final MediaStorage mediaStorage = mock(MediaStorage.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final RuleRepository ruleRepository = mock(RuleRepository.class);
-    private final DeleteMediaUseCase useCase =
-            new DeleteMediaUseCase(orgAccessGuard, mediaRepository, mediaStorage, blockRepository, ruleRepository);
+    private final PublishedExperienceRepository publishedExperienceRepository = mock(PublishedExperienceRepository.class);
+    private final DeleteMediaUseCase useCase = new DeleteMediaUseCase(
+            orgAccessGuard, mediaRepository, mediaStorage, blockRepository, ruleRepository, publishedExperienceRepository);
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID mediaId = UUID.randomUUID();
@@ -67,6 +69,17 @@ class DeleteMediaUseCaseTest {
         when(ruleRepository.existsByEffectMediaId(mediaId.toString())).thenReturn(true);
 
         assertThatThrownBy(() -> useCase.execute(orgId, mediaId)).isInstanceOf(MediaInUseException.class);
+    }
+
+    @Test
+    void usedOnlyByALatestPublishedCopy_isRefused() {
+        when(mediaRepository.findByIdAndOrgId(mediaId, orgId)).thenReturn(Optional.of(new Media()));
+        when(publishedExperienceRepository.latestCopyUsesMedia(mediaId.toString())).thenReturn(true);
+
+        assertThatThrownBy(() -> useCase.execute(orgId, mediaId)).isInstanceOf(MediaInUseException.class);
+
+        verify(mediaRepository, never()).delete(any());
+        verifyNoInteractions(mediaStorage);
     }
 
     @Test

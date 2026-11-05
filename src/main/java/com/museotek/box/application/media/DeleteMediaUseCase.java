@@ -6,6 +6,7 @@ import com.museotek.box.domain.media.MediaInUseException;
 import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.infrastructure.repository.BlockRepository;
 import com.museotek.box.infrastructure.repository.MediaRepository;
+import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
 import com.museotek.box.infrastructure.repository.RuleRepository;
 import com.museotek.box.infrastructure.storage.MediaStorage;
 import org.springframework.stereotype.Service;
@@ -14,8 +15,8 @@ import java.util.UUID;
 
 /**
  * Removes a media item and its file. Any member who can reach the org may delete, like upload.
- * Refused while any experience still uses the item (a block's mediaId or a reply effect's media
- * fields), since the Box would then show nothing there.
+ * Refused while any experience still uses the item: its draft (a block's mediaId or a reply effect's
+ * media fields) or its latest published copy, since the Box would then show nothing there.
  */
 @Service
 public class DeleteMediaUseCase {
@@ -25,19 +26,22 @@ public class DeleteMediaUseCase {
     private final MediaStorage mediaStorage;
     private final BlockRepository blockRepository;
     private final RuleRepository ruleRepository;
+    private final PublishedExperienceRepository publishedExperienceRepository;
 
     public DeleteMediaUseCase(
             OrgAccessGuard orgAccessGuard,
             MediaRepository mediaRepository,
             MediaStorage mediaStorage,
             BlockRepository blockRepository,
-            RuleRepository ruleRepository
+            RuleRepository ruleRepository,
+            PublishedExperienceRepository publishedExperienceRepository
     ) {
         this.orgAccessGuard = orgAccessGuard;
         this.mediaRepository = mediaRepository;
         this.mediaStorage = mediaStorage;
         this.blockRepository = blockRepository;
         this.ruleRepository = ruleRepository;
+        this.publishedExperienceRepository = publishedExperienceRepository;
     }
 
     public void execute(UUID orgId, UUID mediaId) {
@@ -45,7 +49,9 @@ public class DeleteMediaUseCase {
 
         Media media = mediaRepository.findByIdAndOrgId(mediaId, orgId)
                 .orElseThrow(() -> new MediaNotFoundException("No media " + mediaId + " for org " + orgId));
-        if (blockRepository.existsByMediaId(mediaId.toString()) || ruleRepository.existsByEffectMediaId(mediaId.toString())) {
+        String id = mediaId.toString();
+        if (blockRepository.existsByMediaId(id) || ruleRepository.existsByEffectMediaId(id)
+                || publishedExperienceRepository.latestCopyUsesMedia(id)) {
             throw new MediaInUseException("Media " + mediaId + " is still used by an experience");
         }
 

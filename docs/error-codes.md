@@ -39,11 +39,13 @@ the current experience document instead.
 
 ## Experience
 
-- `EXPERIENCE_NOT_READY` (422): the experience can't be published yet, or a published experience was
-  saved with gaps. `details` lists the gaps, e.g. a start scene without a start card or a video block
+- `EXPERIENCE_NOT_READY` (422): the experience can't be published yet. Saving a draft with gaps is
+  allowed. `details` lists the gaps, e.g. a start scene without a start card or a video block
   without a video.
-- `START_CARD_IN_USE` (409): another experience on the same box already uses this start card.
+- `START_CARD_IN_USE` (409): on assign or publish, another experience on the same box already starts with
+  this card (its latest published version).
 - `EXPERIENCE_NOT_PUBLISHED` (404): the experience has never been published (`GET /projects/{id}/published`).
+  The same code with 422 when assigning a never-published experience to a box: publish it first.
 - Stale save (409, no `code`): someone else saved the experience after you loaded it. The body is the
   current experience and the `ETag` header its version. Show it to the user and let them save again.
 

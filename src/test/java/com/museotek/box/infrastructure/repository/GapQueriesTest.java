@@ -2,7 +2,6 @@ package com.museotek.box.infrastructure.repository;
 
 import com.museotek.box.domain.block.Block;
 import com.museotek.box.domain.block.BlockType;
-import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.media.Media;
 import com.museotek.box.domain.media.MediaKind;
 import com.museotek.box.domain.project.Project;
@@ -23,46 +22,19 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// The native/JPQL queries behind the start-card and gap checks, against real Postgres + Liquibase.
+// The native queries behind the gap checks, against real Postgres + Liquibase.
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
-class StartCardAndGapQueriesTest {
+class GapQueriesTest {
 
     @Autowired
     private TestEntityManager em;
     @Autowired
-    private BoxRepository boxRepository;
-    @Autowired
     private BlockRepository blockRepository;
 
     private final UUID orgId = UUID.randomUUID();
-
-    @Test
-    void startCardQueries_findOnlyOtherLiveExperiencesOnTheSameBox() {
-        ScanObjectType red = card("Red");
-        ScanObjectType blue = card("Blue");
-        Project quiz = project("Quiz", red, null);
-        Project hunt = project("Hunt", red, null);
-        Project story = project("Story", blue, null);
-        Project deleted = project("Old", red, Instant.now());
-        Project elsewhere = project("Elsewhere", red, null);
-        Box hallA = box("Hall A", quiz, hunt, story, deleted);
-        box("Hall B", elsewhere);
-        em.flush();
-
-        assertThat(boxRepository.findProjectNamesWithStartCard(hallA.getId(), quiz.getId(), red.getId()))
-                .containsExactly("Hunt");
-        assertThat(boxRepository.findProjectNamesWithStartCard(hallA.getId(), story.getId(), blue.getId()))
-                .isEmpty();
-        assertThat(boxRepository.findBoxNamesWhereStartCardIsTaken(story.getId(), red.getId()))
-                .containsExactly("Hall A");
-        assertThat(boxRepository.findBoxNamesWhereStartCardIsTaken(elsewhere.getId(), red.getId()))
-                .isEmpty();
-        assertThat(boxRepository.findNamesByAssignedProjectId(quiz.getId())).containsExactly("Hall A");
-        assertThat(boxRepository.findNamesByAssignedProjectId(project("Unpublished", red, null).getId())).isEmpty();
-    }
 
     @Test
     void gapQueries_findMediaBlocksWithoutFiles_andScenesThatPlayAVideo() {
@@ -115,15 +87,6 @@ class StartCardAndGapQueriesTest {
         scene.setPosition(Integer.parseInt(key));
         scene.setStart(start);
         return em.persist(scene);
-    }
-
-    private Box box(String name, Project... projects) {
-        Box box = new Box();
-        box.setOrgId(orgId);
-        box.setName(name);
-        box.setSerialNumber(UUID.randomUUID().toString());
-        box.getAssignedProjects().addAll(List.of(projects));
-        return em.persist(box);
     }
 
     private void block(Scene scene, String key, BlockType type, String content) {

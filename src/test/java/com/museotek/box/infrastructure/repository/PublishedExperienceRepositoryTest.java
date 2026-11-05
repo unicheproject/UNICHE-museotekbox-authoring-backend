@@ -1,5 +1,6 @@
 package com.museotek.box.infrastructure.repository;
 
+import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.publish.PublishedExperience;
@@ -51,6 +52,52 @@ class PublishedExperienceRepositoryTest {
     }
 
     @Test
+    void startCardQueries_lookAtTheLatestCopyOfOtherLiveExperiencesOnTheSameBox() {
+        Project quiz = project("Quiz");
+        Project hunt = project("Hunt");
+        Project story = project("Story");
+        Project deleted = project("Old");
+        deleted.setDeletedAt(Instant.now());
+        Project draftOnly = project("Draft only");
+        Project elsewhere = project("Elsewhere");
+        em.persist(copy(quiz, 1, RED, List.of()));
+        em.persist(copy(hunt, 1, BLUE, List.of()));
+        em.persist(copy(hunt, 2, RED, List.of()));    // latest: now starts with red
+        em.persist(copy(story, 1, RED, List.of()));
+        em.persist(copy(story, 2, BLUE, List.of()));  // latest: moved away from red
+        em.persist(copy(deleted, 1, RED, List.of()));
+        em.persist(copy(elsewhere, 1, RED, List.of()));
+        Box hallA = box("Hall A", quiz, hunt, story, deleted, draftOnly);
+        box("Hall B", elsewhere);
+        em.flush();
+
+        assertThat(publishedExperienceRepository.findProjectNamesOnBoxWithStartCard(hallA.getId(), quiz.getId(), RED))
+                .containsExactly("Hunt");
+        assertThat(publishedExperienceRepository.findProjectNamesOnBoxWithStartCard(hallA.getId(), quiz.getId(), 99L))
+                .isEmpty();
+        assertThat(publishedExperienceRepository.findBoxNamesWhereStartCardIsTaken(story.getId(), RED))
+                .containsExactly("Hall A");
+        assertThat(publishedExperienceRepository.findBoxNamesWhereStartCardIsTaken(elsewhere.getId(), RED))
+                .isEmpty();
+    }
+
+    @Test
+    void inUseQueries_lookOnlyAtTheLatestCopy() {
+        Project project = project("Quiz");
+        String oldMedia = UUID.randomUUID().toString();
+        String newMedia = UUID.randomUUID().toString();
+        em.persist(copy(project, 1, 7L, List.of(oldMedia)));
+        em.persist(copy(project, 2, 9L, List.of(newMedia)));
+        em.flush();
+
+        assertThat(publishedExperienceRepository.latestCopyUsesMedia(newMedia)).isTrue();
+        assertThat(publishedExperienceRepository.latestCopyUsesMedia(oldMedia)).isFalse();
+        assertThat(publishedExperienceRepository.latestCopyUsesCardType(9L)).isTrue();
+        assertThat(publishedExperienceRepository.latestCopyUsesCardType(8L)).isTrue();
+        assertThat(publishedExperienceRepository.latestCopyUsesCardType(7L)).isFalse();
+    }
+
+    @Test
     void neverPublished_hasNoLatestCopy() {
         assertThat(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(project().getId())).isEmpty();
     }
@@ -63,17 +110,38 @@ class PublishedExperienceRepositoryTest {
         assertThat(projectRepository.findByIdForUpdate(project.getId())).contains(project);
     }
 
+    private static final Long RED = 7L;
+    private static final Long BLUE = 8L;
+    private final UUID orgId = UUID.randomUUID();
+
     private Project project() {
+        return project("Quiz");
+    }
+
+    private Project project(String name) {
         Project project = new Project();
         project.setId(UUID.randomUUID());
-        project.setOrgId(UUID.randomUUID());
-        project.setName("Quiz");
+        project.setOrgId(orgId);
+        project.setName(name);
         return em.persist(project);
     }
 
+    private Box box(String name, Project... projects) {
+        Box box = new Box();
+        box.setOrgId(orgId);
+        box.setName(name);
+        box.setSerialNumber(UUID.randomUUID().toString());
+        box.getAssignedProjects().addAll(List.of(projects));
+        return em.persist(box);
+    }
+
     private static PublishedExperience copy(Project project, int version, List<String> mediaIds) {
-        return new PublishedExperience(project, version, "Quiz", ExperienceOutput.DISPLAY, 7L,
-                "{\"contentSchemaVersion\":1,\"scenes\":[]}", mediaIds, List.of(7L, 8L),
+        return copy(project, version, RED, mediaIds);
+    }
+
+    private static PublishedExperience copy(Project project, int version, Long startCardTypeId, List<String> mediaIds) {
+        return new PublishedExperience(project, version, project.getName(), ExperienceOutput.DISPLAY, startCardTypeId,
+                "{\"contentSchemaVersion\":1,\"scenes\":[]}", mediaIds, List.of(startCardTypeId, 8L),
                 Instant.parse("2026-11-03T10:00:00Z"), "someone");
     }
 }

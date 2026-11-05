@@ -5,6 +5,7 @@ import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
+import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
 import com.museotek.box.infrastructure.repository.RuleRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
@@ -28,8 +29,10 @@ class DeleteScanObjectTypeUseCaseTest {
     private final ScanObjectRepository scanObjectRepository = mock(ScanObjectRepository.class);
     private final SceneRepository sceneRepository = mock(SceneRepository.class);
     private final RuleRepository ruleRepository = mock(RuleRepository.class);
+    private final PublishedExperienceRepository publishedExperienceRepository = mock(PublishedExperienceRepository.class);
     private final DeleteScanObjectTypeUseCase useCase = new DeleteScanObjectTypeUseCase(
-            orgAccessGuard, scanObjectTypeRepository, scanObjectRepository, sceneRepository, ruleRepository);
+            orgAccessGuard, scanObjectTypeRepository, scanObjectRepository, sceneRepository, ruleRepository,
+            publishedExperienceRepository);
 
     private ScanObjectType existingType(UUID orgId) {
         ScanObjectType type = new ScanObjectType();
@@ -83,6 +86,17 @@ class DeleteScanObjectTypeUseCaseTest {
         when(scanObjectRepository.existsByScanObjectTypeId(1L)).thenReturn(false);
         when(sceneRepository.existsByInitCardTypeId(1L)).thenReturn(false);
         when(ruleRepository.existsByScanObjectTypeId(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> useCase.execute(orgId, 1L)).isInstanceOf(ScanObjectTypeInUseException.class);
+
+        verify(scanObjectTypeRepository, never()).delete(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void usedOnlyByALatestPublishedCopy_throwsWithoutDeleting() {
+        UUID orgId = UUID.randomUUID();
+        when(scanObjectTypeRepository.findByIdAndOrgId(1L, orgId)).thenReturn(Optional.of(existingType(orgId)));
+        when(publishedExperienceRepository.latestCopyUsesCardType(1L)).thenReturn(true);
 
         assertThatThrownBy(() -> useCase.execute(orgId, 1L)).isInstanceOf(ScanObjectTypeInUseException.class);
 

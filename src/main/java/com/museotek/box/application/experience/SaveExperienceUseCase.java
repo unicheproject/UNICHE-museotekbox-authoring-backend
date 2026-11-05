@@ -1,7 +1,5 @@
 package com.museotek.box.application.experience;
 
-import com.museotek.box.application.box.BoxStartCards;
-import com.museotek.box.application.box.PublishedExperienceCheck;
 import com.museotek.box.application.experience.ExperienceDocument.BlockDocument;
 import com.museotek.box.application.experience.ExperienceDocument.RuleDocument;
 import com.museotek.box.application.experience.ExperienceDocument.SceneDocument;
@@ -65,8 +63,6 @@ public class SaveExperienceUseCase {
     private final MediaRepository mediaRepository;
     private final ScanObjectSupport scanObjectSupport;
     private final ExperienceDocumentValidator validator;
-    private final BoxStartCards boxStartCards;
-    private final PublishedExperienceCheck publishedExperienceCheck;
 
     public SaveExperienceUseCase(
             ProjectAccessGuard projectAccessGuard,
@@ -78,9 +74,7 @@ public class SaveExperienceUseCase {
             ExperienceVariableRepository experienceVariableRepository,
             MediaRepository mediaRepository,
             ScanObjectSupport scanObjectSupport,
-            ExperienceDocumentValidator validator,
-            BoxStartCards boxStartCards,
-            PublishedExperienceCheck publishedExperienceCheck
+            ExperienceDocumentValidator validator
     ) {
         this.projectAccessGuard = projectAccessGuard;
         this.projectRepository = projectRepository;
@@ -92,8 +86,6 @@ public class SaveExperienceUseCase {
         this.mediaRepository = mediaRepository;
         this.scanObjectSupport = scanObjectSupport;
         this.validator = validator;
-        this.boxStartCards = boxStartCards;
-        this.publishedExperienceCheck = publishedExperienceCheck;
     }
 
     @Transactional
@@ -128,7 +120,6 @@ public class SaveExperienceUseCase {
         if (!errors.isEmpty()) {
             throw new ExperienceValidationException(errors);
         }
-        requireStartCardFreeOnAssignedBoxes(projectId, document);
 
         Map<String, Scene> sceneByKey = existingScenes.stream()
                 .collect(Collectors.toMap(Scene::getSceneKey, scene -> scene));
@@ -165,20 +156,7 @@ public class SaveExperienceUseCase {
         project.setDocVersion(project.getDocVersion() + 1);
         project = projectRepository.save(project);
 
-        // Reads the rows just written, so they must reach the database first.
-        projectRepository.flush();
-        publishedExperienceCheck.requireNoGapsIfPublished(projectId);
-
         return buildView(project, savedFlow, savedVariables, savedScenes, savedBlocks, savedRules);
-    }
-
-    // Only matters once the experience is on a Box. A missing start card is a gap instead (PublishedExperienceCheck).
-    private void requireStartCardFreeOnAssignedBoxes(UUID projectId, ExperienceDocument document) {
-        for (SceneDocument scene : document.scenes()) {
-            if (scene.isStart() && scene.initCardTypeId() != null) {
-                boxStartCards.requireFreeOnAssignedBoxes(projectId, scene.initCardTypeId());
-            }
-        }
     }
 
     // A key already reported by validateKeys is skipped here - it's already going to fail the
