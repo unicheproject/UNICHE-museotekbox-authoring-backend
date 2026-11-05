@@ -72,9 +72,9 @@ token needed).
 
 **Personal data (GDPR):** we store the JWT subject, email, username, display name and first/last seen
 time of users (`users`), the author's subject and name on comments (`comments.author_subject`, `author_name`), and the
-subject of whoever resolved a comment, uploaded a media file or created a template (`comments.resolved_by`,
-`media.uploaded_by`, `experience_templates.created_by`). Export and erase: `scripts/gdpr/` (update it when a column like
-these is added).
+subject of whoever resolved a comment, uploaded a media file, created a template or published an experience
+(`comments.resolved_by`, `media.uploaded_by`, `experience_templates.created_by`, `published_experiences.published_by`).
+Export and erase: `scripts/gdpr/` (update it when a column like these is added).
 No personal data in logs, URLs or error messages; no production data in development or tests. Say so whenever a change
 adds personal data or a new purpose. This is engineering practice, not legal advice.
 
@@ -143,11 +143,16 @@ disagree, this file wins and the document is fixed.
 
 ## 12. Decisions and open points
 **Decisions (confirmed by the owner)**, one line each, newest last: `<YYYY-MM-DD> <decision>. Why: <reason>.`
-- 2026-10-14 Save (`PUT /projects/{id}/experience`) and publish (`PUT /boxes/{boxId}/projects/{projectId}`) stay
-  separate endpoints. Why: different permissions, If-Match on save only, many boxes per experience.
+- 2026-10-14 Save (`PUT /projects/{id}/experience`) and publish stay separate endpoints. Why: different permissions,
+  If-Match on save only, many boxes per experience.
 - 2026-10-14 The visitor picks the experience on a box by scanning its start card (model A). Why: no staff step on site.
 - 2026-10-21 Experience templates are "half": types are a Java enum and the compiler stays in the frontend; presets
   are rows (global via Liquibase only, the org's own via manager CRUD). Why: a new type always needs frontend code.
+- 2026-11-03 Publishing (`POST /projects/{id}/publish`, managers only) saves a frozen copy of the draft in
+  `published_experiences`; Boxes play the latest copy of each assigned experience, never the draft. The copy's
+  `content` is its own format for Boxes (`PublishedContent`, `contentSchemaVersion`), not the CMS response. Assigning
+  (`PUT /boxes/{boxId}/projects/{projectId}`) only chooses the Boxes. Why: curators keep editing while Boxes play a
+  checked version (see `docs/proposal-device-api.md`).
 
 **Kept as is from the guidelines audit (2026-10-23, do not "fix" in passing):**
 - Error body stays `ErrorEnvelope`, not RFC 9457 problem details. Why: the format changes together with the frontend
@@ -174,7 +179,8 @@ disagree, this file wins and the document is fixed.
   coordinated across UNICHE tools, and should comment bodies be kept once the author is anonymised?
 - Static analysis is not configured. Secret detection runs in CI (gitleaks, `secrets` job in `ci.yml`).
 - Should platform admins be able to edit or delete global templates?
-- Box device API (box auth, downloading published experiences and media, rule evaluation order) is not designed yet.
+- Box device API: proposed in `docs/proposal-device-api.md` (box pairing, device REST API, later a websocket), rule
+  evaluation order in `docs/proposal-player-app.md`. Published copies are built; the rest is not.
 
 ## 13. Known gotchas (verified in code, dated)
 - 2026-10-14 `@DataJpaTest` needs `@ActiveProfiles("test")`, otherwise it does not pick up the Testcontainers setup.

@@ -43,6 +43,7 @@ the current experience document instead.
   saved with gaps. `details` lists the gaps, e.g. a start scene without a start card or a video block
   without a video.
 - `START_CARD_IN_USE` (409): another experience on the same box already uses this start card.
+- `EXPERIENCE_NOT_PUBLISHED` (404): the experience has never been published (`GET /projects/{id}/published`).
 - Stale save (409, no `code`): someone else saved the experience after you loaded it. The body is the
   current experience and the `ETag` header its version. Show it to the user and let them save again.
 

@@ -32,3 +32,9 @@ SELECT id, org_id, name, created_at
 FROM experience_templates
 WHERE created_by = :'subject'
 ORDER BY created_at;
+
+\echo '== experience versions published by the user =='
+SELECT project_id, version, name, published_at
+FROM published_experiences
+WHERE published_by = :'subject'
+ORDER BY published_at;
