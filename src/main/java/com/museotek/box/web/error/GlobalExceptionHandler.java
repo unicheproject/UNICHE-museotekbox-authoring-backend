@@ -18,6 +18,7 @@ import com.museotek.box.domain.media.MediaInUseException;
 import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.domain.media.MediaTooLargeException;
 import com.museotek.box.domain.media.UnsupportedMediaFileException;
+import com.museotek.box.domain.publish.ExperienceNotPublishedException;
 import com.museotek.box.domain.scanobject.DuplicateRfidTagException;
 import com.museotek.box.domain.scanobject.ScanObjectNotFoundException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
@@ -93,6 +94,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorEnvelope handleStartCardInUse(StartCardInUseException e) {
         return new ErrorEnvelope("START_CARD_IN_USE", e.getMessage(), List.of(), requestId());
+    }
+
+    @ExceptionHandler(ExperienceNotPublishedException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorEnvelope handleExperienceNotPublished(ExperienceNotPublishedException e) {
+        return new ErrorEnvelope("EXPERIENCE_NOT_PUBLISHED", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(CommentNotFoundException.class)
