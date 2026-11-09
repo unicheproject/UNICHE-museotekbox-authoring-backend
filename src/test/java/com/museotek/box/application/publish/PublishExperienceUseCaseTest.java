@@ -53,9 +53,11 @@ class PublishExperienceUseCaseTest {
     private final GetExperienceQuery getExperienceQuery = mock(GetExperienceQuery.class);
     private final ExperienceGaps experienceGaps = mock(ExperienceGaps.class);
     private final BoxStartCards boxStartCards = mock(BoxStartCards.class);
+    private final PublishWarnings publishWarnings = mock(PublishWarnings.class);
     private final PublishExperienceUseCase useCase = new PublishExperienceUseCase(
             projectAccessGuard, orgAccessGuard, projectRepository, publishedExperienceRepository, getExperienceQuery,
-            experienceGaps, boxStartCards, new PublishedContentMapper(new ObjectMapper()), Clock.fixed(NOW, ZoneOffset.UTC));
+            experienceGaps, boxStartCards, new PublishedContentMapper(new ObjectMapper()), publishWarnings,
+            Clock.fixed(NOW, ZoneOffset.UTC));
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID projectId = UUID.randomUUID();
@@ -79,7 +81,7 @@ class PublishExperienceUseCaseTest {
         assertThat(copy.getMediaIds()).containsExactly(video.toString());
         assertThat(copy.getCardTypeIds()).containsExactly(7L);
         assertThat(copy.getPublishedAt()).isEqualTo(NOW);
-        assertThat(status).isEqualTo(new PublishStatus(1, 5, NOW, false));
+        assertThat(status).isEqualTo(new PublishStatus(1, 5, NOW, false, List.of()));
         verify(boxStartCards).requireFreeOnAssignedBoxes(projectId, 7L);
     }
 
@@ -108,6 +110,29 @@ class PublishExperienceUseCaseTest {
         assertThat(status.hasUnpublishedChanges()).isFalse();
         verify(publishedExperienceRepository, never()).save(any());
         verifyNoInteractions(experienceGaps, getExperienceQuery);
+    }
+
+    @Test
+    void warnings_areReturned_butDontStopThePublish() {
+        stubReadyDraft();
+        when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId)).thenReturn(Optional.empty());
+        when(publishWarnings.find(orgId)).thenReturn(List.of("no Exit card"));
+
+        PublishStatus status = useCase.execute(projectId);
+
+        assertThat(savedCopy().getVersion()).isEqualTo(1);
+        assertThat(status.warnings()).containsExactly("no Exit card");
+    }
+
+    @Test
+    void unchangedDraft_stillReturnsTheWarnings() {
+        stubAccess();
+        when(projectRepository.findByIdForUpdate(projectId)).thenReturn(Optional.of(project));
+        when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId))
+                .thenReturn(Optional.of(copyOf(project(5), 2)));
+        when(publishWarnings.find(orgId)).thenReturn(List.of("no Exit card"));
+
+        assertThat(useCase.execute(projectId).warnings()).containsExactly("no Exit card");
     }
 
     @Test

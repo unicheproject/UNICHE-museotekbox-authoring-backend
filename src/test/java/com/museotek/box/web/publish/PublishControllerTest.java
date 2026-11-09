@@ -37,13 +37,14 @@ class PublishControllerTest {
     @Test
     void publish_answersTheVersionBoxesNowPlay() throws Exception {
         when(publishUseCase.execute(projectId)).thenReturn(
-                new PublishStatus(3, 12, Instant.parse("2026-11-03T10:00:00Z"), false));
+                new PublishStatus(3, 12, Instant.parse("2026-11-03T10:00:00Z"), false, List.of("no Exit card")));
 
         mockMvc.perform(post("/api/v1/projects/{projectId}/publish", projectId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(3))
                 .andExpect(jsonPath("$.docVersion").value(12))
-                .andExpect(jsonPath("$.hasUnpublishedChanges").value(false));
+                .andExpect(jsonPath("$.hasUnpublishedChanges").value(false))
+                .andExpect(jsonPath("$.warnings[0]").value("no Exit card"));
     }
 
     @Test
@@ -60,12 +61,13 @@ class PublishControllerTest {
     @Test
     void published_answersTheLatestVersion() throws Exception {
         when(statusQuery.execute(projectId)).thenReturn(
-                new PublishStatus(3, 12, Instant.parse("2026-11-03T10:00:00Z"), true));
+                new PublishStatus(3, 12, Instant.parse("2026-11-03T10:00:00Z"), true, List.of()));
 
         mockMvc.perform(get("/api/v1/projects/{projectId}/published", projectId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(3))
-                .andExpect(jsonPath("$.hasUnpublishedChanges").value(true));
+                .andExpect(jsonPath("$.hasUnpublishedChanges").value(true))
+                .andExpect(jsonPath("$.warnings").isEmpty());
     }
 
     @Test

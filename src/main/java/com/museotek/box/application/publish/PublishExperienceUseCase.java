@@ -28,6 +28,7 @@ import java.util.UUID;
  * Box it is assigned to then plays. Org managers only, like assigning. The draft must have no gaps
  * ({@link ExperienceGaps}), and its start card must not start another experience on the same Boxes
  * ({@link BoxStartCards}). Publishing a draft that hasn't changed since the last publish is a no-op.
+ * Either way the answer carries {@link PublishWarnings}, which never block.
  */
 @Service
 public class PublishExperienceUseCase {
@@ -40,6 +41,7 @@ public class PublishExperienceUseCase {
     private final ExperienceGaps experienceGaps;
     private final BoxStartCards boxStartCards;
     private final PublishedContentMapper contentMapper;
+    private final PublishWarnings publishWarnings;
     private final Clock clock;
 
     public PublishExperienceUseCase(
@@ -51,6 +53,7 @@ public class PublishExperienceUseCase {
             ExperienceGaps experienceGaps,
             BoxStartCards boxStartCards,
             PublishedContentMapper contentMapper,
+            PublishWarnings publishWarnings,
             Clock clock
     ) {
         this.projectAccessGuard = projectAccessGuard;
@@ -61,19 +64,21 @@ public class PublishExperienceUseCase {
         this.experienceGaps = experienceGaps;
         this.boxStartCards = boxStartCards;
         this.contentMapper = contentMapper;
+        this.publishWarnings = publishWarnings;
         this.clock = clock;
     }
 
     @Transactional
     public PublishStatus execute(UUID projectId) {
         CatalogueProjectDto catalogueProject = projectAccessGuard.requireAccess(projectId);
-        orgAccessGuard.requireManager(UUID.fromString(catalogueProject.orgId()));
+        UUID orgId = UUID.fromString(catalogueProject.orgId());
+        orgAccessGuard.requireManager(orgId);
 
         // Locked first, so a save or another publish can't change the draft while it is copied.
         Project project = projectRepository.findByIdForUpdate(projectId).orElseThrow();
         Optional<PublishedExperience> latest = publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId);
         if (latest.isPresent() && latest.get().getDocVersion() == project.getDocVersion()) {
-            return PublishStatus.of(latest.get(), project);
+            return PublishStatus.of(latest.get(), project, publishWarnings.find(orgId));
         }
 
         List<String> gaps = experienceGaps.find(projectId);
@@ -96,6 +101,6 @@ public class PublishExperienceUseCase {
                 contentMapper.mediaIds(content), contentMapper.cardTypeIds(content),
                 Instant.now(clock), CurrentPrincipal.subject().orElse(null));
         publishedExperienceRepository.save(copy);
-        return PublishStatus.of(copy, project);
+        return PublishStatus.of(copy, project, publishWarnings.find(orgId));
     }
 }

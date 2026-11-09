@@ -6,8 +6,10 @@ import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.publish.ExperienceNotPublishedException;
 import com.museotek.box.domain.publish.PublishedExperience;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
+import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -28,9 +30,19 @@ class GetPublishStatusQueryTest {
     private final ProjectAccessGuard projectAccessGuard = mock(ProjectAccessGuard.class);
     private final ProjectRepository projectRepository = mock(ProjectRepository.class);
     private final PublishedExperienceRepository publishedExperienceRepository = mock(PublishedExperienceRepository.class);
-    private final GetPublishStatusQuery query = new GetPublishStatusQuery(projectAccessGuard, projectRepository, publishedExperienceRepository);
+    private final PublishWarnings publishWarnings = mock(PublishWarnings.class);
+    private final GetPublishStatusQuery query = new GetPublishStatusQuery(
+            projectAccessGuard, projectRepository, publishedExperienceRepository, publishWarnings);
 
+    private final UUID orgId = UUID.randomUUID();
     private final UUID projectId = UUID.randomUUID();
+
+    @BeforeEach
+    void projectInOrg() {
+        when(projectAccessGuard.requireAccess(projectId)).thenReturn(new CatalogueProjectDto(
+                projectId.toString(), orgId.toString(), "Wing", "wing", "ACTIVE",
+                new CatalogueProjectDto.CatalogueToolDto("museotek-box"), PUBLISHED, PUBLISHED));
+    }
 
     @Test
     void draftSavedAfterPublishing_hasUnpublishedChanges() {
@@ -38,7 +50,7 @@ class GetPublishStatusQueryTest {
                 .thenReturn(Optional.of(copyOf(project(4), 2)));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project(6)));
 
-        assertThat(query.execute(projectId)).isEqualTo(new PublishStatus(2, 4, PUBLISHED, true));
+        assertThat(query.execute(projectId)).isEqualTo(new PublishStatus(2, 4, PUBLISHED, true, List.of()));
     }
 
     @Test
@@ -48,6 +60,16 @@ class GetPublishStatusQueryTest {
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project(4)));
 
         assertThat(query.execute(projectId).hasUnpublishedChanges()).isFalse();
+    }
+
+    @Test
+    void orgWarnings_areReturned() {
+        when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId))
+                .thenReturn(Optional.of(copyOf(project(4), 2)));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project(4)));
+        when(publishWarnings.find(orgId)).thenReturn(List.of("no Exit card"));
+
+        assertThat(query.execute(projectId).warnings()).containsExactly("no Exit card");
     }
 
     @Test
@@ -63,7 +85,7 @@ class GetPublishStatusQueryTest {
 
         assertThatThrownBy(() -> query.execute(projectId)).isInstanceOf(CatalogueForbiddenException.class);
 
-        verifyNoInteractions(publishedExperienceRepository, projectRepository);
+        verifyNoInteractions(publishedExperienceRepository, projectRepository, publishWarnings);
     }
 
     private Project project(int docVersion) {
