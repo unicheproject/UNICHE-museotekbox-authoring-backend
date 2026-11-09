@@ -20,10 +20,12 @@ runs in Docker. Keycloak and Catalogue are separate UNICHE services you point it
    committed. If port 5432 is taken (e.g. by a native Postgres), also set `DB_PORT`.
 2. Start the database: `docker compose up -d`.
 3. Give the backend these environment variables (in IntelliJ's run configuration, or exported
-   in your shell). The app refuses to start without the first four:
+   in your shell). The app refuses to start without the first five:
    - `DB_USERNAME`, `DB_PASSWORD`: the same as in `.env`
    - `IDP_ISSUER_URI`: the Keycloak realm whose tokens this backend accepts
    - `CATALOGUE_BASE_URL`: the UNICHE Catalogue to ask for permissions
+   - `PLAYER_SECRETS`: the secret museotek-player logs in with on `/player/v1` (at least 32 characters;
+     two, comma-separated, while one is being replaced). Locally any long random string will do.
    - `DB_URL`: only if the database is not on `localhost:5432`
    - `SWAGGER_ENABLED=true`: optional, turns on the API docs at `/museotekbox/swagger-ui.html`
 4. Run `./mvnw spring-boot:run`. The API is under `http://localhost:8080/museotekbox/api/v1`.
