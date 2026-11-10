@@ -1,6 +1,7 @@
-# MuseotekBox's own Postgres only. The backend itself always runs directly (IntelliJ /
-# ./mvnw spring-boot:run), never in Docker — Postgres is the one dependency actually
+# MuseotekBox's own Postgres only. In local development the backend runs directly (IntelliJ /
+# ./mvnw spring-boot:run), not in Docker — Postgres is the one dependency actually
 # owned by this repo, unlike Keycloak/Catalogue which are separate services.
+# The Dockerfile is for server deployment only.
 #
 # Prerequisites:
 #   cp .env.example .env      # then set DB_USERNAME/DB_PASSWORD
