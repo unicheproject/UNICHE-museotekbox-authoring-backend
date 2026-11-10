@@ -1,8 +1,10 @@
 package com.museotek.box.web.player;
 
+import com.museotek.box.application.media.GetMediaContentQuery.MediaContent;
 import com.museotek.box.application.player.BoxStatusReport;
 import com.museotek.box.application.player.GetBoxForPlayerQuery;
 import com.museotek.box.application.player.GetExperienceForPlayerQuery;
+import com.museotek.box.application.player.GetMediaForPlayerQuery;
 import com.museotek.box.application.player.IdentifyBoxQuery;
 import com.museotek.box.application.player.ListOrgBoxesForPlayerQuery;
 import com.museotek.box.application.player.PlayerBoxView;
@@ -15,10 +17,12 @@ import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.media.Media;
 import com.museotek.box.domain.media.MediaKind;
+import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.domain.publish.ExperienceNotPublishedException;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -37,6 +41,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -47,10 +53,11 @@ class PlayerControllerTest {
     private final GetBoxForPlayerQuery getBoxQuery = mock(GetBoxForPlayerQuery.class);
     private final GetExperienceForPlayerQuery getExperienceQuery = mock(GetExperienceForPlayerQuery.class);
     private final ReportBoxStatusUseCase reportBoxStatusUseCase = mock(ReportBoxStatusUseCase.class);
+    private final GetMediaForPlayerQuery getMediaQuery = mock(GetMediaForPlayerQuery.class);
 
     private final MockMvc mockMvc = MockMvcBuilders
             .standaloneSetup(new PlayerController(identifyBoxQuery, listOrgBoxesQuery, getBoxQuery, getExperienceQuery,
-                    reportBoxStatusUseCase, 30))
+                    reportBoxStatusUseCase, getMediaQuery, 30))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
@@ -137,6 +144,7 @@ class PlayerControllerTest {
         media.setKind(MediaKind.VIDEO);
         media.setContentType("video/mp4");
         media.setSizeBytes(48211311L);
+        media.setSha256("ab12");
         when(getExperienceQuery.execute(12L, projectId)).thenReturn(new PlayerExperienceCopy(
                 new PlayerExperience(projectId, "Wing", 3, ExperienceOutput.DISPLAY, 7L),
                 Instant.parse("2026-11-03T10:00:00Z"),
@@ -150,7 +158,37 @@ class PlayerControllerTest {
                 .andExpect(jsonPath("$.content.scenes").isArray())
                 .andExpect(jsonPath("$.media[0].id").value(mediaId.toString()))
                 .andExpect(jsonPath("$.media[0].kind").value("VIDEO"))
-                .andExpect(jsonPath("$.media[0].size").value(48211311));
+                .andExpect(jsonPath("$.media[0].size").value(48211311))
+                .andExpect(jsonPath("$.media[0].sha256").value("ab12"));
+    }
+
+    @Test
+    void mediaContent_isTheFile_cacheableForGood_withRangeSupport() throws Exception {
+        UUID mediaId = UUID.randomUUID();
+        Media media = new Media();
+        media.setId(mediaId);
+        media.setName("Intro.mp4");
+        media.setContentType("video/mp4");
+        when(getMediaQuery.execute(mediaId)).thenReturn(new MediaContent(media, new ByteArrayResource(new byte[]{1, 2, 3, 4})));
+
+        mockMvc.perform(get("/player/v1/media/{mediaId}/content", mediaId))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "video/mp4"))
+                .andExpect(header().string("Cache-Control", "max-age=31536000, private, immutable"))
+                .andExpect(content().bytes(new byte[]{1, 2, 3, 4}));
+        mockMvc.perform(get("/player/v1/media/{mediaId}/content", mediaId).header("Range", "bytes=1-2"))
+                .andExpect(status().isPartialContent())
+                .andExpect(content().bytes(new byte[]{2, 3}));
+    }
+
+    @Test
+    void mediaContent_unknown_is404() throws Exception {
+        UUID mediaId = UUID.randomUUID();
+        when(getMediaQuery.execute(mediaId)).thenThrow(new MediaNotFoundException("No media " + mediaId));
+
+        mockMvc.perform(get("/player/v1/media/{mediaId}/content", mediaId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MEDIA_NOT_FOUND"));
     }
 
     @Test

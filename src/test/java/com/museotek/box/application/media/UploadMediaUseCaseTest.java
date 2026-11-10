@@ -15,9 +15,11 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -67,6 +69,8 @@ class UploadMediaUseCaseTest {
         assertThat(media.getSizeBytes()).isEqualTo(PNG.length);
         assertThat(media.getStoredFilename()).isEqualTo(orgId + "/stored.png");
         assertThat(media.getUploadedAt()).isEqualTo(NOW);
+        assertThat(media.getSha256())
+                .isEqualTo(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(PNG)));
     }
 
     @Test

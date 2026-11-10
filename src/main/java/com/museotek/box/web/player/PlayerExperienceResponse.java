@@ -15,10 +15,12 @@ public record PlayerExperienceResponse(UUID projectId, String name, int version,
                                        Long startCardTypeId, Instant publishedAt, @JsonRawValue String content,
                                        List<MediaFile> media) {
 
-    public record MediaFile(UUID id, MediaKind kind, String contentType, long size) {
+    // sha256 is null only for an old file the startup backfill hasn't reached (or whose file is missing).
+    public record MediaFile(UUID id, MediaKind kind, String contentType, long size, String sha256) {
 
         static MediaFile from(Media media) {
-            return new MediaFile(media.getId(), media.getKind(), media.getContentType(), media.getSizeBytes());
+            return new MediaFile(media.getId(), media.getKind(), media.getContentType(), media.getSizeBytes(),
+                    media.getSha256());
         }
     }
 

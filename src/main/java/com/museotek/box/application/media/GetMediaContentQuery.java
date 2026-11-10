@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
-/** A media item's file, for previews in the editor (and, once the Box device API exists, for the Box). */
+/** A media item's file, for previews in the editor. The player project has its own: GetMediaForPlayerQuery. */
 @Service
 public class GetMediaContentQuery {
 

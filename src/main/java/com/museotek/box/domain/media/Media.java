@@ -54,4 +54,8 @@ public class Media {
 
     @Column(name = "uploaded_at", nullable = false)
     private Instant uploadedAt;
+
+    // SHA-256 of the file, hex. Null only for a file uploaded before the column existed, until the backfill reaches it.
+    @Column(name = "sha256", length = 64)
+    private String sha256;
 }

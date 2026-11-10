@@ -18,4 +18,7 @@ public interface MediaRepository extends JpaRepository<Media, UUID> {
     Optional<Media> findByIdAndOrgId(UUID id, UUID orgId);
 
     List<Media> findByOrgIdAndIdIn(UUID orgId, Collection<UUID> ids);
+
+    // Files uploaded before media.sha256 existed.
+    List<Media> findBySha256IsNull();
 }

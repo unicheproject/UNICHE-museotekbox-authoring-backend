@@ -16,6 +16,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.security.DigestInputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
@@ -89,7 +90,8 @@ public class UploadMediaUseCase {
             throw new UnsupportedMediaFileException("The file's content doesn't match its declared type '" + contentType + "'");
         }
 
-        String storedFilename = mediaStorage.store(orgId, extension, buffered);
+        DigestInputStream hashed = MediaChecksums.sha256While(buffered);
+        String storedFilename = mediaStorage.store(orgId, extension, hashed);
         try {
             Media media = new Media();
             media.setId(UUID.randomUUID());
@@ -101,6 +103,7 @@ public class UploadMediaUseCase {
             media.setStoredFilename(storedFilename);
             media.setUploadedBy(CurrentPrincipal.subject().orElse(null));
             media.setUploadedAt(Instant.now(clock));
+            media.setSha256(MediaChecksums.hex(hashed));
             return mediaRepository.save(media);
         } catch (RuntimeException e) {
             mediaStorage.delete(storedFilename);
