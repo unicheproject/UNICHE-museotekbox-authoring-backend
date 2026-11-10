@@ -1,10 +1,14 @@
 package com.museotek.box.infrastructure.repository;
 
 import com.museotek.box.domain.box.Box;
+import com.museotek.box.domain.box.BoxStatus;
+import com.museotek.box.domain.project.Project;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,4 +26,17 @@ public interface BoxRepository extends JpaRepository<Box, Long> {
     // (open-in-view is off, and a read query has no transaction of its own).
     @Query("select p.id from Box b join b.assignedProjects p where b.id = :boxId")
     List<UUID> findAssignedProjectIds(@Param("boxId") Long boxId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Box b set b.lastSeenAt = :now where b.id = :boxId")
+    int touchLastSeen(@Param("boxId") Long boxId, @Param("now") Instant now);
+
+    // One conditional update, so two reports arriving together can't both win: only a newer "at" applies.
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Box b set b.status = :status, b.currentProject = :project, b.currentSceneKey = :sceneKey, b.statusAt = :at
+            where b.id = :boxId and (b.statusAt is null or b.statusAt < :at)
+            """)
+    int applyStatusIfNewer(@Param("boxId") Long boxId, @Param("status") BoxStatus status, @Param("project") Project project,
+                           @Param("sceneKey") String sceneKey, @Param("at") Instant at);
 }

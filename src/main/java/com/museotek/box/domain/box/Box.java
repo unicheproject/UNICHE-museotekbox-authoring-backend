@@ -18,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -50,6 +51,18 @@ public class Box {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_project_id")
     private Project currentProject;
+
+    // Scene of the running experience, as the player project last reported it.
+    @Column(name = "current_scene_key", length = 255)
+    private String currentSceneKey;
+
+    // When we last heard from the player project about this Box, even with a report that came too late to apply.
+    @Column(name = "last_seen_at")
+    private Instant lastSeenAt;
+
+    // When the applied status report happened (its "at"), so a late report never overwrites a newer one.
+    @Column(name = "status_at")
+    private Instant statusAt;
 
     @ManyToMany
     @JoinTable(

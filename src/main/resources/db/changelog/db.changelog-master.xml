@@ -16,5 +16,6 @@
     <include file="sql/09-random-destination.sql" relativeToChangelogFile="true"/>
     <include file="sql/10-published-experiences.sql" relativeToChangelogFile="true"/>
     <include file="sql/11-special-card-types.sql" relativeToChangelogFile="true"/>
+    <include file="sql/12-box-status.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

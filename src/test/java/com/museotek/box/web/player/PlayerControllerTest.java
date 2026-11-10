@@ -1,5 +1,6 @@
 package com.museotek.box.web.player;
 
+import com.museotek.box.application.player.BoxStatusReport;
 import com.museotek.box.application.player.GetBoxForPlayerQuery;
 import com.museotek.box.application.player.GetExperienceForPlayerQuery;
 import com.museotek.box.application.player.IdentifyBoxQuery;
@@ -8,11 +9,13 @@ import com.museotek.box.application.player.PlayerBoxView;
 import com.museotek.box.application.player.PlayerExperience;
 import com.museotek.box.application.player.PlayerExperienceCopy;
 import com.museotek.box.application.player.PlayerScanObject;
+import com.museotek.box.application.player.ReportBoxStatusUseCase;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.media.Media;
 import com.museotek.box.domain.media.MediaKind;
+import com.museotek.box.domain.publish.ExperienceNotPublishedException;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -25,11 +28,15 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -39,9 +46,11 @@ class PlayerControllerTest {
     private final ListOrgBoxesForPlayerQuery listOrgBoxesQuery = mock(ListOrgBoxesForPlayerQuery.class);
     private final GetBoxForPlayerQuery getBoxQuery = mock(GetBoxForPlayerQuery.class);
     private final GetExperienceForPlayerQuery getExperienceQuery = mock(GetExperienceForPlayerQuery.class);
+    private final ReportBoxStatusUseCase reportBoxStatusUseCase = mock(ReportBoxStatusUseCase.class);
 
     private final MockMvc mockMvc = MockMvcBuilders
-            .standaloneSetup(new PlayerController(identifyBoxQuery, listOrgBoxesQuery, getBoxQuery, getExperienceQuery, 30))
+            .standaloneSetup(new PlayerController(identifyBoxQuery, listOrgBoxesQuery, getBoxQuery, getExperienceQuery,
+                    reportBoxStatusUseCase, 30))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
@@ -142,6 +151,45 @@ class PlayerControllerTest {
                 .andExpect(jsonPath("$.media[0].id").value(mediaId.toString()))
                 .andExpect(jsonPath("$.media[0].kind").value("VIDEO"))
                 .andExpect(jsonPath("$.media[0].size").value(48211311));
+    }
+
+    @Test
+    void status_isPassedOn_andAnswers204() throws Exception {
+        mockMvc.perform(put("/player/v1/boxes/{boxId}/status", 12L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"online\":true,\"runningProjectId\":\"" + projectId
+                                + "\",\"sceneKey\":\"track-3\",\"at\":\"2026-11-04T10:42:05Z\"}"))
+                .andExpect(status().isNoContent());
+
+        verify(reportBoxStatusUseCase).execute(12L,
+                new BoxStatusReport(true, projectId, "track-3", Instant.parse("2026-11-04T10:42:05Z")));
+    }
+
+    @Test
+    void status_withoutOnlineOrAt_is400() throws Exception {
+        mockMvc.perform(put("/player/v1/boxes/{boxId}/status", 12L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"online\":true}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/player/v1/boxes/{boxId}/status", 12L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"at\":\"2026-11-04T10:42:05Z\"}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(reportBoxStatusUseCase);
+    }
+
+    @Test
+    void status_forAnExperienceNotOnTheBox_is404() throws Exception {
+        doThrow(new ExperienceNotPublishedException("not on box"))
+                .when(reportBoxStatusUseCase).execute(eq(12L), any());
+
+        mockMvc.perform(put("/player/v1/boxes/{boxId}/status", 12L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"online\":true,\"runningProjectId\":\"" + projectId
+                                + "\",\"at\":\"2026-11-04T10:42:05Z\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("EXPERIENCE_NOT_PUBLISHED"));
     }
 
     private Box box() {
