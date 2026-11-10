@@ -18,5 +18,6 @@
     <include file="sql/11-special-card-types.sql" relativeToChangelogFile="true"/>
     <include file="sql/12-box-status.sql" relativeToChangelogFile="true"/>
     <include file="sql/13-media-sha256.sql" relativeToChangelogFile="true"/>
+    <include file="sql/14-screens.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
