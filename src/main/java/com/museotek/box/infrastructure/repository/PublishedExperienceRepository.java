@@ -13,6 +13,15 @@ public interface PublishedExperienceRepository extends JpaRepository<PublishedEx
     // The copy Boxes play.
     Optional<PublishedExperience> findTopByProjectIdOrderByVersionDesc(UUID projectId);
 
+    // The copy Boxes play, for every live experience on this box. Assigning requires a copy, so each one has one.
+    @Query("""
+            select pe from Box b join b.assignedProjects p, PublishedExperience pe
+            where b.id = :boxId and p.deletedAt is null and pe.project = p
+              and pe.version = (select max(v.version) from PublishedExperience v where v.project = p)
+            order by pe.name
+            """)
+    List<PublishedExperience> findLatestCopiesOnBox(@Param("boxId") Long boxId);
+
     // Names of the other live experiences on this box whose latest copy starts with this card.
     @Query("""
             select p.name from Box b join b.assignedProjects p, PublishedExperience pe

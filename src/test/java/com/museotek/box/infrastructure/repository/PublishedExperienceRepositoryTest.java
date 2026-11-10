@@ -82,6 +82,31 @@ class PublishedExperienceRepositoryTest {
     }
 
     @Test
+    void latestCopiesOnBox_areTheLatestOfEachLiveExperienceOnThatBox_byName() {
+        Project quiz = project("Quiz");
+        Project hunt = project("Hunt");
+        Project deleted = project("Old");
+        deleted.setDeletedAt(Instant.now());
+        Project draftOnly = project("Draft only");
+        Project elsewhere = project("Elsewhere");
+        em.persist(copy(quiz, 1, RED, List.of()));
+        em.persist(copy(quiz, 2, BLUE, List.of()));
+        em.persist(copy(hunt, 1, RED, List.of()));
+        em.persist(copy(deleted, 1, RED, List.of()));
+        em.persist(copy(elsewhere, 1, RED, List.of()));
+        Box hallA = box("Hall A", quiz, hunt, deleted, draftOnly);
+        box("Hall B", elsewhere);
+        em.flush();
+        em.clear();
+
+        List<PublishedExperience> copies = publishedExperienceRepository.findLatestCopiesOnBox(hallA.getId());
+
+        assertThat(copies).extracting(PublishedExperience::getName).containsExactly("Hunt", "Quiz");
+        assertThat(copies).extracting(PublishedExperience::getVersion).containsExactly(1, 2);
+        assertThat(copies.get(0).getProject().getId()).isEqualTo(hunt.getId());
+    }
+
+    @Test
     void inUseQueries_lookOnlyAtTheLatestCopy() {
         Project project = project("Quiz");
         String oldMedia = UUID.randomUUID().toString();
