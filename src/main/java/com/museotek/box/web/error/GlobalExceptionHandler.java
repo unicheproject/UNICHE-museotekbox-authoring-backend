@@ -44,7 +44,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -374,11 +377,30 @@ public class GlobalExceptionHandler {
         return new ErrorEnvelope("MISSING_HEADER", "Required header '" + e.getHeaderName() + "' is missing", List.of(), requestId());
     }
 
+    /**
+     * Last resort. Spring's own request errors (wrong method, wrong content type, ...) carry their status, so they
+     * keep it, with the status name as code, instead of turning into a 500. Anything else is a bug: logged at ERROR,
+     * and the client gets a fixed text plus the request id to report.
+     */
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ErrorEnvelope handleUnexpected(Exception e) {
+    public ResponseEntity<ErrorEnvelope> handleUnexpected(Exception e) {
+        if (e instanceof ErrorResponse springError && springError.getStatusCode().is4xxClientError()) {
+            HttpStatusCode status = springError.getStatusCode();
+            log.debug("Rejected request: {}", e.getClass().getSimpleName());
+            return ResponseEntity.status(status)
+                    .body(new ErrorEnvelope(codeFor(status), "The request was rejected", List.of(), requestId()));
+        }
         log.error("Unhandled exception", e);
-        return new ErrorEnvelope("INTERNAL_ERROR", "An unexpected error occurred", List.of(), requestId());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorEnvelope("INTERNAL_ERROR", "An unexpected error occurred", List.of(), requestId()));
+    }
+
+    private static String codeFor(HttpStatusCode status) {
+        HttpStatus known = HttpStatus.resolve(status.value());
+        if (known == null) {
+            return "BAD_REQUEST";
+        }
+        return known.name();
     }
 
     private static String requestId() {

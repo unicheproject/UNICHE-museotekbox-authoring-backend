@@ -444,4 +444,19 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message").value("An unexpected error occurred"))
                 .andExpect(jsonPath("$.details").isEmpty());
     }
+
+    @Test
+    void wrongMethod_keepsSpringsStatusInsteadOfBecomingA500() throws Exception {
+        mockMvc.perform(post("/test/boom"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.requestId").value("test-request-id"));
+    }
+
+    @Test
+    void wrongContentType_keepsSpringsStatusInsteadOfBecomingA500() throws Exception {
+        mockMvc.perform(post("/test/validated").contentType(MediaType.TEXT_PLAIN).content("name"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
+    }
 }

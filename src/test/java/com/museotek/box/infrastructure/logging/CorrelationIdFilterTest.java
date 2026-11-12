@@ -56,6 +56,18 @@ class CorrelationIdFilterTest {
     }
 
     @Test
+    void incomingIdWithALineBreak_isReplacedSoItCannotForgeLogLines() {
+        assertThat(CorrelationIdFilter.chooseId("abc\nERROR fake line")).doesNotContain("\n").isNotEqualTo("abc");
+    }
+
+    @Test
+    void incomingIdLongerThan64Characters_isReplaced() {
+        String tooLong = "a".repeat(65);
+
+        assertThat(CorrelationIdFilter.chooseId(tooLong)).isNotEqualTo(tooLong);
+    }
+
+    @Test
     void mdcIsClearedEvenWhenChainThrows() {
         when(request.getHeader(CorrelationIdFilter.HEADER)).thenReturn(null);
         try {
