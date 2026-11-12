@@ -2,10 +2,10 @@ Based on mobics-guidelines (no tag yet, commit 1854078)
 
 # MuseotekBox Tool Backend: Project Source of Truth
 
-The authoring API of MuseotekBox, an RFID museum experience platform on UNICHE: curators build experiences (scenes,
-blocks, rules) that a physical box plays. If the code, the chat history or other documents disagree with this file, fix
+The backend of MuseotekBox, an RFID museum experience platform on UNICHE: curators build experiences (scenes,
+blocks, rules) in the authoring side, and the player package runs them for museum Boxes and screens. If the code, the chat history or other documents disagree with this file, fix
 the disagreement here first (or ask), then change the code. A CLAUDE.md in a sub-folder adds rules for that folder and
-must not contradict this file. Status as of 2026-10-23: development.
+must not contradict this file. Status as of 2026-11-11: development; the player package is being built.
 
 ## 1. Identity
 - Stack: Java 21, Spring Boot 3.4.7, Maven (wrapper pinned), PostgreSQL 16 (Docker image `postgres:16.6-bookworm`)
@@ -13,8 +13,10 @@ must not contradict this file. Status as of 2026-10-23: development.
   `README.md` explains the layers, the Catalogue integration, JIT provisioning and companion rows. Read it first.
 - Frontend repo: `UNICHE-museotekbox-authoring-frontend` (Vue)
 - UI language: Greek and English (the frontend's). Code, identifiers, commits, DB names and API error messages are English.
-- Auth: OAuth2 resource server (Keycloak JWT). Organisations, projects and permissions belong to Catalogue and are
-  checked live through it; this backend keeps only its own data plus companion rows.
+- Auth: OAuth2 resource server (Keycloak JWT) for curators. Organisations, projects and permissions belong to Catalogue
+  and are checked live through it; this backend keeps only its own data plus companion rows. Devices (screens, Boxes)
+  never use Keycloak: see section 6, "Devices".
+- How the Box, the screen and the tool talk: `docs/communication.md` (living).
 
 ## 2. Who does what
 - **The assistant** writes code and tests, runs the tests, does the review in section 3 and drafts the commit message.
@@ -70,6 +72,17 @@ token needed).
   (manager-only writes) first.
 - Skipping either is a cross-tenant bypass: nothing else checks it. Every role rule has a test.
 
+**Devices (the player package):**
+- Screens log in with a screen key, got once for a one-time setup code (single use, 3 days) that a manager creates in
+  the tool. Keys and codes are stored as SHA-256 fingerprints only, shown once, revocable. A Box logs in with its
+  serial number, which is treated as a secret: never in URLs, logs or responses.
+- A screen's key proves its org: it only ever sees and drives that org's Boxes. Checked in the use cases, with tests.
+- Rate limits on setup codes and screen keys are per connection plus a global cap on failures, never per IP (a museum
+  shares one IP): 5 wrong codes per connection → close, 100 failed redeems/hour in total → redeem paused 10 min;
+  3 wrong keys per connection → close, more than 10 reconnects/min per screen → blocked 1 min. Numbers are settings.
+- Running visits and Box locks live in memory: a restart ends visits, screens re-claim their Box. So only one copy of
+  the app is active at a time (a standby takes over on failure).
+
 **Personal data (GDPR):** we store the JWT subject, email, username, display name and first/last seen
 time of users (`users`), the author's subject and name on comments (`comments.author_subject`, `author_name`), and the
 subject of whoever resolved a comment, uploaded a media file, created a template or published an experience
@@ -78,7 +91,8 @@ Export and erase: `scripts/gdpr/` (update it when a column like these is added).
 No personal data in logs, URLs or error messages; no production data in development or tests. Say so whenever a change
 adds personal data or a new purpose. This is engineering practice, not legal advice.
 
-**Triggers for a security review:** authentication, roles and access guards, input validation, file handling (media
+**Triggers for a security review:** authentication, roles and access guards, device login (screen keys, setup codes,
+serials), websocket message handling, rate limits, input validation, file handling (media
 uploads), queries, secrets or configuration, logging, personal data, dependencies or the build, the API contract. Then
 go through: every endpoint authenticated unless explicitly public; every role rule covered by a test; error responses
 leak nothing (no SQL, stack traces, exception messages, rejected values); logs free of secrets and personal data;
@@ -88,6 +102,11 @@ uploads limited by size, type and content (magic bytes); deliberate CORS. Report
 - **Layers:** controller (`web/<feature>`, HTTP only, own request/response records) → `application/<feature>`
   (`*Query` = read, `*UseCase` = write, `@Transactional`) → repository (`infrastructure/repository`, flat). Entities
   never leave the API. Controllers never call Catalogue or a repository directly.
+- **Player package (`com.museotek.box.player`):** websocket handlers (its front door, like controllers), the runtime
+  (rules, timers, visits), Box locks, rate limits. It calls only `application` queries and use cases (and their
+  views, domain exceptions), never repositories or entities; nothing outside it depends on it. `PlayerBoundaryTest`
+  (ArchUnit) enforces both. Socket errors use the `ErrorEnvelope` fields in a `{type: "error", ...}` message. Published
+  copies are read, never changed; a visit keeps the copy it started with.
 - **Time:** always `Instant.now(clock)` with the injected `Clock` bean (`ClockConfig`), never `Instant.now()`.
   Tests pass `Clock.fixed(...)`.
 - **Style:** constructor injection, one short Javadoc line per class, explicit `if` null checks, comments only where the why is not obvious.
@@ -138,6 +157,7 @@ disagree, this file wins and the document is fixed.
 - `README.md` (living): what the system is, Catalogue integration, package structure, adding a feature
 - `docs/architecture-and-classes.md`, `docs/security-and-errors.md`, `docs/dependencies-and-config.md` (snapshot)
 - `docs/error-codes.md` (living): every error `code`, its status and when it happens. Update it with each new code
+- `docs/communication.md` (living): how the Box, the screen and the tool talk; update it with each socket change
 - `docs/experience-api-flow.md`, `docs/frontend-*.md` (snapshot): what the frontend needs to know
 - `docs/proposal-*.md` (snapshot): why a feature was built the way it was
 
@@ -153,6 +173,15 @@ disagree, this file wins and the document is fixed.
   `content` is its own format for Boxes (`PublishedContent`, `contentSchemaVersion`), not the CMS response. Assigning
   (`PUT /boxes/{boxId}/projects/{projectId}`) only chooses the Boxes. Why: curators keep editing while Boxes play a
   checked version (see `docs/proposal-device-api.md`).
+- 2026-11-04/05 BOX experiences run on the Box (offline-capable), DISPLAY ones in the player, by the `output` field.
+  Universal and Exit are card-type flags. Why: museums lose internet; a Box-only experience must still work.
+- 2026-11-05 Screens use a setup code traded for a per-screen key, never a staff login. Why: no typing on site; the
+  code is safe to carry (single use), the key never leaves the device.
+- 2026-11-11 The player is a package in this backend (`com.museotek.box.player`) guarded by ArchUnit, not a separate
+  app; the `/player/v1` REST API and its shared secret go once the websockets replace them. Why: few museums, one
+  deploy, no copies; the boundary keeps a later split possible. Accepted: authoring and visits share one process.
+- 2026-11-11 Box locks in memory, no leases; rate limits as in section 6; visit reports deferred until someone asks
+  for statistics. Why: a restart ends visits anyway; nothing uses visit reports yet.
 
 **Kept as is from the guidelines audit (2026-10-23, do not "fix" in passing):**
 - Error body stays `ErrorEnvelope`, not RFC 9457 problem details. Why: the format changes together with the frontend
@@ -179,8 +208,8 @@ disagree, this file wins and the document is fixed.
   coordinated across UNICHE tools, and should comment bodies be kept once the author is anonymised?
 - Static analysis is not configured. Secret detection runs in CI (gitleaks, `secrets` job in `ci.yml`).
 - Should platform admins be able to edit or delete global templates?
-- Box device API: proposed in `docs/proposal-device-api.md` (box pairing, device REST API, later a websocket), rule
-  evaluation order in `docs/proposal-player-app.md`. Published copies are built; the rest is not.
+- Player package: see `docs/communication.md` "Still open" (pairing a screen with its Box in the tool, media cookie,
+  Box capabilities and factory secret, runtime rule order needing the frontend developer's yes).
 
 ## 13. Known gotchas (verified in code, dated)
 - 2026-10-14 `@DataJpaTest` needs `@ActiveProfiles("test")`, otherwise it does not pick up the Testcontainers setup.

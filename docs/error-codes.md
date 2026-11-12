@@ -36,6 +36,9 @@ the current experience document instead.
 - `INVALID_PARAMETER` (400): a value in the URL or query string has the wrong type, e.g. an unknown
   `?type=` or a non-UUID id.
 - `MISSING_HEADER` (400): a required header is missing, e.g. `If-Match` when saving the experience.
+- Other request errors keep their HTTP status, with the status name as `code`, for example
+  `METHOD_NOT_ALLOWED` (405: the path exists but not for this method) or `UNSUPPORTED_MEDIA_TYPE` (415: wrong
+  `Content-Type`).
 
 ## Experience
 
