@@ -12,9 +12,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 /**
- * Security for {@code /player/v1/**}, used only by the player project: the shared secret, no Keycloak, no CORS (the
- * caller is a server, not a browser). Ordered before {@link SecurityConfig}, which keeps every other path; curator
- * tokens are refused here, and the secret is refused there.
+ * Security for the player's paths, ordered before {@link SecurityConfig}, which keeps every other path.
+ * {@code /player/v1/**} is used only by the old player project: the shared secret, no Keycloak, no CORS (the caller
+ * is a server, not a browser); curator tokens are refused there, and the secret is refused everywhere else.
  */
 @Configuration
 public class PlayerSecurityConfig {
@@ -39,6 +39,24 @@ public class PlayerSecurityConfig {
                         .accessDeniedHandler(errorHandler)
                 )
                 .addFilterBefore(new PlayerSecretFilter(secrets), AnonymousAuthenticationFilter.class);
+        return http.build();
+    }
+
+    /**
+     * The player's websockets ({@code /player/ws/**}). The handshake is open: browsers can't send a login header on
+     * it, so each connection logs in with its first message (screen key, setup code or Box serial), checked by the
+     * player package. The allowed Origins are checked by the websocket handshake itself
+     * ({@code museotek.player.socket.allowed-origins}); curator tokens mean nothing here.
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain playerSocketFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/player/ws/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(AbstractHttpConfigurer::disable)
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return http.build();
     }
 }

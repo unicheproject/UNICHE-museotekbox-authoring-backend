@@ -14,13 +14,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Uses up a setup code and creates its screen. The new screen's key is returned once, here only; the player project
- * passes it to the screen. Unknown, used, cancelled and expired codes all answer the same, so a guess learns nothing.
+ * Uses up a setup code and creates its screen. The new screen's key is returned once, here only; the player passes it
+ * to the screen. Unknown, used, cancelled and expired codes all answer the same, so a guess learns nothing.
  */
 @Service
 public class RedeemScreenSetupCodeUseCase {
 
-    public record RedeemedScreen(Screen screen, String key) {
+    public record RedeemedScreen(PlayerScreenView screen, String key) {
     }
 
     private final ScreenSetupCodeRepository setupCodeRepository;
@@ -57,7 +57,7 @@ public class RedeemScreenSetupCodeUseCase {
         screen.setCreatedAt(now);
         Screen saved = screenRepository.save(screen);
         setupCode.setScreenId(saved.getId());
-        return new RedeemedScreen(saved, key);
+        return new RedeemedScreen(PlayerScreenView.from(saved), key);
     }
 
     private static SetupCodeNotFoundException notFound() {

@@ -10,6 +10,7 @@ import com.museotek.box.domain.screen.SetupCodeNotFoundException;
 import com.museotek.box.infrastructure.repository.ScreenRepository;
 import com.museotek.box.infrastructure.repository.ScreenSetupCodeRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -37,6 +38,7 @@ class ScreenManagementUseCasesTest {
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
     private final ScreenSetupCodeRepository setupCodeRepository = mock(ScreenSetupCodeRepository.class);
     private final ScreenRepository screenRepository = mock(ScreenRepository.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
 
     private final UUID orgId = UUID.randomUUID();
 
@@ -104,15 +106,16 @@ class ScreenManagementUseCasesTest {
     }
 
     @Test
-    void revoke_setsRevokedAt() {
+    void revoke_setsRevokedAt_andTellsThePlayer() {
         Screen screen = new Screen();
         UUID screenId = UUID.randomUUID();
         when(screenRepository.findByIdAndOrgIdAndRevokedAtIsNull(screenId, orgId)).thenReturn(Optional.of(screen));
 
-        new RevokeScreenUseCase(orgAccessGuard, screenRepository, CLOCK).execute(orgId, screenId);
+        new RevokeScreenUseCase(orgAccessGuard, screenRepository, events, CLOCK).execute(orgId, screenId);
 
         verify(orgAccessGuard).requireManager(orgId);
         assertThat(screen.getRevokedAt()).isEqualTo(NOW);
+        verify(events).publishEvent(new ScreenRevokedEvent(screenId));
     }
 
     @Test
@@ -120,7 +123,8 @@ class ScreenManagementUseCasesTest {
         UUID screenId = UUID.randomUUID();
         when(screenRepository.findByIdAndOrgIdAndRevokedAtIsNull(screenId, orgId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> new RevokeScreenUseCase(orgAccessGuard, screenRepository, CLOCK).execute(orgId, screenId))
+        assertThatThrownBy(() -> new RevokeScreenUseCase(orgAccessGuard, screenRepository, events, CLOCK).execute(orgId, screenId))
                 .isInstanceOf(ScreenNotFoundException.class);
+        verifyNoInteractions(events);
     }
 }

@@ -92,6 +92,27 @@ the current experience document instead.
   `defaults` not a JSON object or over 64 KB.
 - `TEMPLATE_NOT_EDITABLE` (403): global templates can't be changed or deleted.
 
+## Screen connection (websocket)
+
+On the screen's websocket an error is a message with the same fields plus `"type": "error"`. Its `requestId` is
+the connection's id in the backend log. "Closes" means the tool then closes the connection with code 1008 and the
+error code as reason: don't just reconnect and retry.
+
+- `SETUP_CODE_NOT_FOUND`: the setup code is unknown, used, cancelled or expired. The connection stays open.
+- `SCREEN_KEY_INVALID`: the screen key is unknown or the screen was removed. The connection stays open, so the
+  screen can ask for a setup code. When a manager removes a logged-in screen, the screen gets this and the tool closes.
+- `TOO_MANY_ATTEMPTS`: too many wrong setup codes or keys on this connection. Closes.
+- `SETUP_PAUSED`: too many wrong setup codes from all screens lately; setup is paused for a few minutes. Closes.
+- `TOO_MANY_RECONNECTS`: this screen logged in too often within a minute; try again in a minute. Closes.
+- `LOGIN_TIMEOUT`: no `SETUP` or `AUTH` soon enough after connecting, or after a wrong attempt. Closes.
+- `MALFORMED_MESSAGE`: not a JSON object with a text `type`, or a field is missing or too long. Closes before
+  login.
+- `MESSAGE_NOT_ALLOWED`: a message type that isn't accepted at this point (before login: anything but `SETUP` or
+  `AUTH`). Closes before login.
+- `INTERNAL_ERROR`: an unexpected error in the backend. Closes (code 1011) before login.
+
+A message over 8192 characters closes the connection with code 1009.
+
 ## UNICHE Catalogue
 
 Organisations, projects and permissions are checked with the UNICHE Catalogue. When it fails:

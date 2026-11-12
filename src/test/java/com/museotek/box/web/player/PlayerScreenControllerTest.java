@@ -4,7 +4,7 @@ import com.museotek.box.application.player.RedeemScreenSetupCodeUseCase;
 import com.museotek.box.application.player.RedeemScreenSetupCodeUseCase.RedeemedScreen;
 import com.museotek.box.application.player.VerifyScreenKeyUseCase;
 import com.museotek.box.domain.screen.InvalidScreenKeyException;
-import com.museotek.box.domain.screen.Screen;
+import com.museotek.box.application.player.PlayerScreenView;
 import com.museotek.box.domain.screen.SetupCodeNotFoundException;
 import com.museotek.box.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -31,7 +31,7 @@ class PlayerScreenControllerTest {
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
-    private final Screen screen = screen();
+    private final PlayerScreenView screen = new PlayerScreenView(UUID.randomUUID(), UUID.randomUUID(), "Hall A screen");
 
     @Test
     void redeem_answersTheScreenAndItsKey() throws Exception {
@@ -41,8 +41,8 @@ class PlayerScreenControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"code\":\"K7QF-M2XR\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.screenId").value(screen.getId().toString()))
-                .andExpect(jsonPath("$.orgId").value(screen.getOrgId().toString()))
+                .andExpect(jsonPath("$.screenId").value(screen.screenId().toString()))
+                .andExpect(jsonPath("$.orgId").value(screen.orgId().toString()))
                 .andExpect(jsonPath("$.name").value("Hall A screen"))
                 .andExpect(jsonPath("$.key").value("the-key"));
     }
@@ -66,8 +66,8 @@ class PlayerScreenControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"key\":\"the-key\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.screenId").value(screen.getId().toString()))
-                .andExpect(jsonPath("$.orgId").value(screen.getOrgId().toString()))
+                .andExpect(jsonPath("$.screenId").value(screen.screenId().toString()))
+                .andExpect(jsonPath("$.orgId").value(screen.orgId().toString()))
                 .andExpect(jsonPath("$.key").doesNotExist());
     }
 
@@ -88,13 +88,5 @@ class PlayerScreenControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());
-    }
-
-    private static Screen screen() {
-        Screen screen = new Screen();
-        screen.setId(UUID.randomUUID());
-        screen.setOrgId(UUID.randomUUID());
-        screen.setName("Hall A screen");
-        return screen;
     }
 }

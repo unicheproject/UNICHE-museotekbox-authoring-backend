@@ -21,15 +21,12 @@ class PlayerBoundaryTest {
             .that().resideInAPackage(PLAYER)
             .should().dependOnClassesThat().resideInAPackage("com.museotek.box.infrastructure.repository..")
             .orShould().dependOnClassesThat().areAnnotatedWith(Entity.class)
-            .because("the player must go through queries and use cases, which check the org and hide private fields")
-            // The package is still empty; the rule guards it from its first class on.
-            .allowEmptyShould(true);
+            .because("the player must go through queries and use cases, which check the org and hide private fields");
 
     static final ArchRule NOTHING_OUTSIDE_DEPENDS_ON_THE_PLAYER = noClasses()
             .that().resideOutsideOfPackage(PLAYER)
             .should().dependOnClassesThat().resideInAPackage(PLAYER)
-            .because("authoring must keep working, and stay splittable, without the player")
-            .allowEmptyShould(true);
+            .because("authoring must keep working, and stay splittable, without the player");
 
     private static final JavaClasses MAIN_CODE = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)

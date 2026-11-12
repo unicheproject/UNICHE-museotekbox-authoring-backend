@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 
-/** Checks a screen's key when it connects to the player project, and on its periodic re-checks. Marks the screen seen. */
+/** Checks a screen's key when it logs in to the player. Marks the screen seen. */
 @Service
 public class VerifyScreenKeyUseCase {
 
@@ -22,10 +22,10 @@ public class VerifyScreenKeyUseCase {
     }
 
     @Transactional
-    public Screen execute(String key) {
+    public PlayerScreenView execute(String key) {
         Screen screen = screenRepository.findByKeyHashAndRevokedAtIsNull(ScreenSecrets.sha256Hex(key))
                 .orElseThrow(() -> new InvalidScreenKeyException("Unknown or revoked screen key"));
         screen.setLastSeenAt(clock.instant());
-        return screen;
+        return PlayerScreenView.from(screen);
     }
 }

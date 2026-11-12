@@ -9,6 +9,7 @@ import com.museotek.box.domain.screen.SetupCodeNotFoundException;
 import com.museotek.box.infrastructure.repository.ScreenRepository;
 import com.museotek.box.infrastructure.repository.ScreenSetupCodeRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -47,11 +48,13 @@ class PlayerScreenUseCasesTest {
         setupCode.setCreatedBy("manager-1");
         when(setupCodeRepository.markUsed(CODE_HASH, NOW)).thenReturn(1);
         when(setupCodeRepository.findByCodeHash(CODE_HASH)).thenReturn(Optional.of(setupCode));
-        when(screenRepository.save(any(Screen.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        ArgumentCaptor<Screen> saved = ArgumentCaptor.forClass(Screen.class);
+        when(screenRepository.save(saved.capture())).thenAnswer(invocation -> invocation.getArgument(0));
 
         RedeemedScreen redeemed = redeem.execute("k7qf-m2xr");
 
-        Screen screen = redeemed.screen();
+        Screen screen = saved.getValue();
+        assertThat(redeemed.screen()).isEqualTo(new PlayerScreenView(screen.getId(), orgId, "Hall A screen"));
         assertThat(screen.getOrgId()).isEqualTo(orgId);
         assertThat(screen.getName()).isEqualTo("Hall A screen");
         assertThat(screen.getCreatedBy()).isEqualTo("manager-1");
@@ -77,9 +80,12 @@ class PlayerScreenUseCasesTest {
     @Test
     void verify_aLiveKey_marksTheScreenSeen() {
         Screen screen = new Screen();
+        screen.setId(UUID.randomUUID());
+        screen.setOrgId(orgId);
+        screen.setName("Hall A screen");
         when(screenRepository.findByKeyHashAndRevokedAtIsNull(ScreenSecrets.sha256Hex("the-key"))).thenReturn(Optional.of(screen));
 
-        assertThat(verify.execute("the-key")).isSameAs(screen);
+        assertThat(verify.execute("the-key")).isEqualTo(new PlayerScreenView(screen.getId(), orgId, "Hall A screen"));
         assertThat(screen.getLastSeenAt()).isEqualTo(NOW);
     }
 
