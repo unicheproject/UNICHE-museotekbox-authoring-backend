@@ -1,6 +1,6 @@
 package com.museotek.box.player;
 
-import com.museotek.box.player.screen.ScreenSocketHandler;
+import com.museotek.box.player.display.DisplaySocketHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
@@ -15,19 +15,19 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 public class PlayerWebSocketConfig implements WebSocketConfigurer {
 
-    public static final String SCREEN_PATH = "/player/ws/screen";
+    public static final String DISPLAY_PATH = "/ws/display";
 
-    private final ScreenSocketHandler screenHandler;
+    private final DisplaySocketHandler displayHandler;
     private final PlayerSocketProperties properties;
 
-    public PlayerWebSocketConfig(ScreenSocketHandler screenHandler, PlayerSocketProperties properties) {
-        this.screenHandler = screenHandler;
+    public PlayerWebSocketConfig(DisplaySocketHandler displayHandler, PlayerSocketProperties properties) {
+        this.displayHandler = displayHandler;
         this.properties = properties;
     }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(screenHandler, SCREEN_PATH)
+        registry.addHandler(displayHandler, DISPLAY_PATH)
                 .setAllowedOrigins(properties.allowedOrigins().toArray(String[]::new));
     }
 }

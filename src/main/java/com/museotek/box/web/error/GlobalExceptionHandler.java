@@ -11,6 +11,7 @@ import com.museotek.box.domain.comment.CommentDeleteForbiddenException;
 import com.museotek.box.domain.comment.CommentHasRepliesException;
 import com.museotek.box.domain.comment.CommentNotFoundException;
 import com.museotek.box.domain.comment.InvalidCommentException;
+import com.museotek.box.domain.display.DisplaySessionNotFoundException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.media.InvalidMediaNameException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
@@ -26,9 +27,6 @@ import com.museotek.box.domain.scanobject.InvalidScanObjectTypeException;
 import com.museotek.box.domain.scanobject.ScanObjectNotFoundException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
-import com.museotek.box.domain.screen.InvalidScreenKeyException;
-import com.museotek.box.domain.screen.ScreenNotFoundException;
-import com.museotek.box.domain.screen.SetupCodeNotFoundException;
 import com.museotek.box.domain.template.ExperienceTemplateNotFoundException;
 import com.museotek.box.domain.template.InvalidTemplateException;
 import com.museotek.box.domain.template.TemplateNotEditableException;
@@ -149,23 +147,10 @@ public class GlobalExceptionHandler {
         return new ErrorEnvelope("MEDIA_IN_USE", e.getMessage(), List.of(), requestId());
     }
 
-    @ExceptionHandler(SetupCodeNotFoundException.class)
+    @ExceptionHandler(DisplaySessionNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ErrorEnvelope handleSetupCodeNotFound(SetupCodeNotFoundException e) {
-        return new ErrorEnvelope("SETUP_CODE_NOT_FOUND", e.getMessage(), List.of(), requestId());
-    }
-
-    @ExceptionHandler(ScreenNotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ErrorEnvelope handleScreenNotFound(ScreenNotFoundException e) {
-        return new ErrorEnvelope("SCREEN_NOT_FOUND", e.getMessage(), List.of(), requestId());
-    }
-
-    // 401 with its own code, so the player project can tell a bad screen key from a bad player secret.
-    @ExceptionHandler(InvalidScreenKeyException.class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public ErrorEnvelope handleInvalidScreenKey(InvalidScreenKeyException e) {
-        return new ErrorEnvelope("SCREEN_KEY_INVALID", e.getMessage(), List.of(), requestId());
+    public ErrorEnvelope handleDisplaySessionNotFound(DisplaySessionNotFoundException e) {
+        return new ErrorEnvelope("DISPLAY_SESSION_NOT_FOUND", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(MediaNotFoundException.class)

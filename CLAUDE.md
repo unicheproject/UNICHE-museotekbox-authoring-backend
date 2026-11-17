@@ -73,25 +73,26 @@ token needed).
 - Skipping either is a cross-tenant bypass: nothing else checks it. Every role rule has a test.
 
 **Devices (the player package):**
-- Screens log in with a screen key, got once for a one-time setup code (single use, 3 days) that a manager creates in
-  the tool. Keys and codes are stored as SHA-256 fingerprints only, shown once, revocable. A Box logs in with its
-  serial number, which is treated as a secret: never in URLs, logs or responses.
-- A screen's key proves its org: it only ever sees and drives that org's Boxes. Checked in the use cases, with tests.
-- Rate limits on setup codes and screen keys are per connection plus a global cap on failures, never per IP (a museum
-  shares one IP): 5 wrong codes per connection → close, 100 failed redeems/hour in total → redeem paused 10 min;
-  3 wrong keys per connection → close, more than 10 reconnects/min per screen → blocked 1 min. Numbers are settings.
+- A display (the TV next to a Box) logs in with a display token that a manager creates in the CMS ("Open display"). It
+  is tied to one Box, stored as a SHA-256 fingerprint only, shown once, revocable, and expires after 30 days unused.
+  It is sent in the websocket's first message (`hello`), never in a URL. A Box logs in with its serial number, which
+  is treated as a secret: never in URLs, logs or responses.
+- A display token proves its Box: the display only ever sees that Box. Checked in the use cases, with tests.
+- One display per Box is connected at a time; the newest wins. No limit on wrong tokens (256 random bits); more
+  than 10 logins/min of one display → blocked 1 min, never per IP (a museum shares one). Numbers are settings.
 - Running visits and Box locks live in memory: a restart ends visits, screens re-claim their Box. So only one copy of
   the app is active at a time (a standby takes over on failure).
 
 **Personal data (GDPR):** we store the JWT subject, email, username, display name and first/last seen
 time of users (`users`), the author's subject and name on comments (`comments.author_subject`, `author_name`), and the
-subject of whoever resolved a comment, uploaded a media file, created a template or published an experience
-(`comments.resolved_by`, `media.uploaded_by`, `experience_templates.created_by`, `published_experiences.published_by`).
+subject of whoever resolved a comment, uploaded a media file, created a template, published an experience or opened a
+display (`comments.resolved_by`, `media.uploaded_by`, `experience_templates.created_by`,
+`published_experiences.published_by`, `display_sessions.created_by`).
 Export and erase: `scripts/gdpr/` (update it when a column like these is added).
 No personal data in logs, URLs or error messages; no production data in development or tests. Say so whenever a change
 adds personal data or a new purpose. This is engineering practice, not legal advice.
 
-**Triggers for a security review:** authentication, roles and access guards, device login (screen keys, setup codes,
+**Triggers for a security review:** authentication, roles and access guards, device login (display tokens,
 serials), websocket message handling, rate limits, input validation, file handling (media
 uploads), queries, secrets or configuration, logging, personal data, dependencies or the build, the API contract. Then
 go through: every endpoint authenticated unless explicitly public; every role rule covered by a test; error responses

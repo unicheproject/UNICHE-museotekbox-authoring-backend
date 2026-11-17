@@ -18,10 +18,6 @@ import java.util.List;
 public record PlayerSocketProperties(
         @NotEmpty List<String> allowedOrigins,
         @NotNull Duration loginTimeout,
-        @Positive int setupFailuresPerConnection,
-        @Positive int setupFailuresPerHour,
-        @NotNull Duration setupPause,
-        @Positive int keyFailuresPerConnection,
         @Positive int loginsPerMinute,
         @NotNull Duration loginBlock
 ) {

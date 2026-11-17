@@ -38,3 +38,9 @@ SELECT project_id, version, name, published_at
 FROM published_experiences
 WHERE published_by = :'subject'
 ORDER BY published_at;
+
+\echo '== displays opened by the user =='
+SELECT id, box_id, created_at, last_seen_at, expires_at, revoked_at
+FROM display_sessions
+WHERE created_by = :'subject'
+ORDER BY created_at;

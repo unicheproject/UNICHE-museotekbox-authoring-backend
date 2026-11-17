@@ -22,5 +22,6 @@ UPDATE comments SET resolved_by = NULL WHERE resolved_by = :'subject';
 UPDATE media SET uploaded_by = NULL WHERE uploaded_by = :'subject';
 UPDATE experience_templates SET created_by = NULL WHERE created_by = :'subject';
 UPDATE published_experiences SET published_by = NULL WHERE published_by = :'subject';
+UPDATE display_sessions SET created_by = NULL WHERE created_by = :'subject';
 
 COMMIT;

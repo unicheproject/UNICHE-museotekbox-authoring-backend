@@ -43,16 +43,16 @@ public class PlayerSecurityConfig {
     }
 
     /**
-     * The player's websockets ({@code /player/ws/**}). The handshake is open: browsers can't send a login header on
-     * it, so each connection logs in with its first message (screen key, setup code or Box serial), checked by the
-     * player package. The allowed Origins are checked by the websocket handshake itself
+     * The player's websockets ({@code /ws/**}). The handshake is open: browsers can't send a login header on it, so
+     * each connection logs in with its first message ({@code hello} with a display token), checked by the player
+     * package. The allowed Origins are checked by the websocket handshake itself
      * ({@code museotek.player.socket.allowed-origins}); curator tokens mean nothing here.
      */
     @Bean
     @Order(2)
     public SecurityFilterChain playerSocketFilterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/player/ws/**")
+                .securityMatcher("/ws/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

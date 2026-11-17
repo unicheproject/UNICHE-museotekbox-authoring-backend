@@ -57,6 +57,7 @@ the current experience document instead.
 - `BOX_NOT_FOUND` (404): no such box in this organisation.
 - `DUPLICATE_SERIAL_NUMBER` (409): another box already has this serial number.
 - `PROJECT_NOT_IN_BOX_ORG` (422): the experience belongs to another organisation than the box.
+- `DISPLAY_SESSION_NOT_FOUND` (404): no such display on this box, or it was already revoked.
 
 ## Scan objects
 
@@ -92,24 +93,25 @@ the current experience document instead.
   `defaults` not a JSON object or over 64 KB.
 - `TEMPLATE_NOT_EDITABLE` (403): global templates can't be changed or deleted.
 
-## Screen connection (websocket)
+## Display connection (websocket `/ws/display`)
 
-On the screen's websocket an error is a message with the same fields plus `"type": "error"`. Its `requestId` is
-the connection's id in the backend log. "Closes" means the tool then closes the connection with code 1008 and the
-error code as reason: don't just reconnect and retry.
+On the display's websocket an error is a message with `"type": "error"` whose `payload` has the same fields as the
+HTTP error. Its `requestId` is the connection's id in the backend log. "Closes" means the tool then closes the
+connection with code 1008 and the error code as reason: don't reconnect after a 1008.
 
-- `SETUP_CODE_NOT_FOUND`: the setup code is unknown, used, cancelled or expired. The connection stays open.
-- `SCREEN_KEY_INVALID`: the screen key is unknown or the screen was removed. The connection stays open, so the
-  screen can ask for a setup code. When a manager removes a logged-in screen, the screen gets this and the tool closes.
-- `TOO_MANY_ATTEMPTS`: too many wrong setup codes or keys on this connection. Closes.
-- `SETUP_PAUSED`: too many wrong setup codes from all screens lately; setup is paused for a few minutes. Closes.
-- `TOO_MANY_RECONNECTS`: this screen logged in too often within a minute; try again in a minute. Closes.
-- `LOGIN_TIMEOUT`: no `SETUP` or `AUTH` soon enough after connecting, or after a wrong attempt. Closes.
-- `MALFORMED_MESSAGE`: not a JSON object with a text `type`, or a field is missing or too long. Closes before
-  login.
-- `MESSAGE_NOT_ALLOWED`: a message type that isn't accepted at this point (before login: anything but `SETUP` or
-  `AUTH`). Closes before login.
+- `DISPLAY_TOKEN_INVALID`: the display token is unknown, revoked or expired, or its Box was deleted. Closes. The
+  display has to be opened again from the CMS.
+- `TOO_MANY_RECONNECTS`: this display logged in too often within a minute; try again in a minute. Closes.
+- `LOGIN_TIMEOUT`: no `hello` within 5 seconds of connecting. Closes.
+- `MALFORMED_MESSAGE`: not a JSON object with a text `type`, or `hello` without a text `payload.token` (or a far too
+  long one). Closes before login.
+- `MESSAGE_NOT_ALLOWED`: a message type that isn't accepted at this point (before login: anything but `hello`).
+  Closes before login.
 - `INTERNAL_ERROR`: an unexpected error in the backend. Closes (code 1011) before login.
+
+Not errors, but the tool also ends a connection with these messages, closing with 1008 and the reason shown:
+- `session.replaced` (`SESSION_REPLACED`): another display connected for the same Box; only the newest stays.
+- `session.revoked` (`SESSION_REVOKED`): a manager revoked this display, or deleted its Box.
 
 A message over 8192 characters closes the connection with code 1009.
 
