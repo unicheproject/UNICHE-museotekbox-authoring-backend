@@ -38,6 +38,10 @@ public class DisplaySession {
     @Column(name = "created_by", length = 255)
     private String createdBy;
 
+    // Copied from Catalogue when the display is opened: the display has no user login to ask Catalogue with.
+    @Column(name = "org_name", length = 255)
+    private String orgName;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

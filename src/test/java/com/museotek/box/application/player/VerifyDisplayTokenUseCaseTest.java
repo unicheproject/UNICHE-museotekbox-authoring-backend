@@ -29,18 +29,19 @@ class VerifyDisplayTokenUseCaseTest {
     private final DisplaySessionRepository sessionRepository = mock(DisplaySessionRepository.class);
     private final BoxRepository boxRepository = mock(BoxRepository.class);
     private final VerifyDisplayTokenUseCase useCase = new VerifyDisplayTokenUseCase(sessionRepository, boxRepository,
-            new DisplaySessionProperties(Duration.ofDays(30), Duration.ofHours(1)), Clock.fixed(NOW, ZoneOffset.UTC));
+            new DisplaySessionProperties(Duration.ofDays(30), Duration.ofHours(1), Duration.ofHours(12)), Clock.fixed(NOW, ZoneOffset.UTC));
 
     private final UUID orgId = UUID.randomUUID();
 
     @Test
-    void validToken_answersTheSessionItsBoxAndOrg() {
+    void validToken_answersTheSessionItsBoxAndOrg_withTheStoredOrgName() {
         DisplaySession session = stored(NOW.plus(Duration.ofDays(5)));
+        session.setOrgName("Museum of Art");
         box();
 
         PlayerDisplayView view = useCase.execute(TOKEN);
 
-        assertThat(view).isEqualTo(new PlayerDisplayView(session.getId(), 12L, orgId));
+        assertThat(view).isEqualTo(new PlayerDisplayView(session.getId(), 12L, orgId, "Museum of Art"));
     }
 
     @Test

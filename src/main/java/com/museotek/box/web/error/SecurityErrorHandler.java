@@ -49,6 +49,17 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
         write(response, "FORBIDDEN", "Access denied");
     }
 
+    /**
+     * A 401 with its own error code, for a chain whose callers must tell its refusal apart from a missing user login
+     * (a display whose token stopped working shows "open the display again" rather than a login screen).
+     */
+    public AuthenticationEntryPoint withCode(String code, String message) {
+        return (request, response, e) -> {
+            bearerEntryPoint.commence(request, response, e);
+            write(response, code, message);
+        };
+    }
+
     private void write(HttpServletResponse response, String code, String message) throws IOException {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         ErrorEnvelope body = new ErrorEnvelope(code, message, List.of(), MDC.get(CorrelationIdFilter.MDC_KEY));

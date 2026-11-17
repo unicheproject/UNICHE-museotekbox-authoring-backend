@@ -12,6 +12,7 @@ import com.museotek.box.domain.comment.CommentHasRepliesException;
 import com.museotek.box.domain.comment.CommentNotFoundException;
 import com.museotek.box.domain.comment.InvalidCommentException;
 import com.museotek.box.domain.display.DisplaySessionNotFoundException;
+import com.museotek.box.domain.display.InvalidMediaLinkException;
 import com.museotek.box.domain.experience.ExperienceValidationException;
 import com.museotek.box.domain.media.InvalidMediaNameException;
 import com.museotek.box.domain.media.InvalidMediaUploadException;
@@ -145,6 +146,13 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorEnvelope handleMediaInUse(MediaInUseException e) {
         return new ErrorEnvelope("MEDIA_IN_USE", e.getMessage(), List.of(), requestId());
+    }
+
+    // 403, not 401: the display's token may be fine; only this link is wrong, expired or of a revoked display.
+    @ExceptionHandler(InvalidMediaLinkException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorEnvelope handleInvalidMediaLink(InvalidMediaLinkException e) {
+        return new ErrorEnvelope("MEDIA_LINK_INVALID", e.getMessage(), List.of(), requestId());
     }
 
     @ExceptionHandler(DisplaySessionNotFoundException.class)

@@ -123,6 +123,30 @@ class PublishedExperienceRepositoryTest {
     }
 
     @Test
+    void latestCopyOnBoxUsesMedia_onlyThatBoxsLiveExperiences_latestCopy() {
+        String oldMedia = UUID.randomUUID().toString();
+        String newMedia = UUID.randomUUID().toString();
+        String otherBoxMedia = UUID.randomUUID().toString();
+        String deletedMedia = UUID.randomUUID().toString();
+        Project quiz = project("Quiz");
+        Project elsewhere = project("Elsewhere");
+        Project deleted = project("Deleted");
+        deleted.setDeletedAt(Instant.parse("2026-11-10T10:00:00Z"));
+        em.persist(copy(quiz, 1, List.of(oldMedia)));
+        em.persist(copy(quiz, 2, List.of(newMedia)));
+        em.persist(copy(elsewhere, 1, List.of(otherBoxMedia)));
+        em.persist(copy(deleted, 1, List.of(deletedMedia)));
+        Box hallA = box("Hall A", quiz, deleted);
+        box("Hall B", elsewhere);
+        em.flush();
+
+        assertThat(publishedExperienceRepository.latestCopyOnBoxUsesMedia(hallA.getId(), newMedia)).isTrue();
+        assertThat(publishedExperienceRepository.latestCopyOnBoxUsesMedia(hallA.getId(), oldMedia)).isFalse();
+        assertThat(publishedExperienceRepository.latestCopyOnBoxUsesMedia(hallA.getId(), otherBoxMedia)).isFalse();
+        assertThat(publishedExperienceRepository.latestCopyOnBoxUsesMedia(hallA.getId(), deletedMedia)).isFalse();
+    }
+
+    @Test
     void latestCopyStartsWith_looksOnlyAtTheLatestCopy() {
         Project project = project("Quiz");
         em.persist(copy(project, 1, RED, List.of()));

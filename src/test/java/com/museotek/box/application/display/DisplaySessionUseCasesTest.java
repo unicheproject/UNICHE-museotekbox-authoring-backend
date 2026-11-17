@@ -8,6 +8,7 @@ import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.display.DisplaySession;
 import com.museotek.box.domain.display.DisplaySessionNotFoundException;
+import com.museotek.box.infrastructure.catalogue.CatalogueOrganisationDto;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import com.museotek.box.infrastructure.repository.DisplaySessionRepository;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class DisplaySessionUseCasesTest {
     private static final Instant NOW = Instant.parse("2026-11-16T12:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
     private static final DisplaySessionProperties PROPERTIES =
-            new DisplaySessionProperties(Duration.ofDays(30), Duration.ofHours(1));
+            new DisplaySessionProperties(Duration.ofDays(30), Duration.ofHours(1), Duration.ofHours(12));
 
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
     private final BoxRepository boxRepository = mock(BoxRepository.class);
@@ -57,6 +58,8 @@ class DisplaySessionUseCasesTest {
     @Test
     void create_storesOnlyTheHashOfTheToken_tiedToTheBox_expiringAfterTheLifetime() {
         boxInOrg();
+        when(orgAccessGuard.requireManager(orgId))
+                .thenReturn(new CatalogueOrganisationDto(orgId.toString(), "Museum of Art", "moa", "ACTIVE"));
         when(sessionRepository.save(any(DisplaySession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         CreatedDisplaySession created = create.execute(orgId, boxId);
@@ -64,6 +67,7 @@ class DisplaySessionUseCasesTest {
         verify(orgAccessGuard).requireManager(orgId);
         DisplaySession stored = created.session();
         assertThat(stored.getBoxId()).isEqualTo(boxId);
+        assertThat(stored.getOrgName()).isEqualTo("Museum of Art");
         assertThat(stored.getTokenHash()).isEqualTo(SecretTokens.sha256Hex(created.token()));
         assertThat(stored.getTokenHash()).doesNotContain(created.token());
         assertThat(stored.getCreatedAt()).isEqualTo(NOW);

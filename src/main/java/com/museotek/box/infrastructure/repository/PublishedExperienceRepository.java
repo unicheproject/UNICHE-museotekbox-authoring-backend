@@ -57,6 +57,17 @@ public interface PublishedExperienceRepository extends JpaRepository<PublishedEx
             """, nativeQuery = true)
     boolean latestCopyUsesMedia(@Param("mediaId") String mediaId);
 
+    // Whether the latest copy of a live experience on this box uses the media: what a display of the box may load.
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM box_projects bp
+                JOIN projects p ON p.id = bp.project_id AND p.deleted_at IS NULL
+                JOIN published_experiences pe ON pe.project_id = p.id
+                WHERE bp.box_id = :boxId
+                  AND pe.media_ids @> jsonb_build_array(CAST(:mediaId AS text))
+                  AND pe.version = (SELECT max(v.version) FROM published_experiences v WHERE v.project_id = p.id))
+            """, nativeQuery = true)
+    boolean latestCopyOnBoxUsesMedia(@Param("boxId") Long boxId, @Param("mediaId") String mediaId);
+
     @Query(value = """
             SELECT EXISTS (SELECT 1 FROM published_experiences pe
                 WHERE pe.card_type_ids @> jsonb_build_array(CAST(:cardTypeId AS bigint))

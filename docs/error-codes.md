@@ -93,6 +93,17 @@ the current experience document instead.
   `defaults` not a JSON object or over 64 KB.
 - `TEMPLATE_NOT_EDITABLE` (403): global templates can't be changed or deleted.
 
+## Display API (`/display/**`)
+
+Called by the display page with its display token as `Authorization: Bearer <token>`; media with a signed link
+instead.
+
+- `DISPLAY_TOKEN_INVALID` (401): no token, or it is unknown, revoked or expired, or its Box was deleted. The display
+  has to be opened again from the CMS. A user's login token is refused here too.
+- `MEDIA_LINK_INVALID` (403): the media link wasn't made by the tool, was changed, has expired (links last 12 hours,
+  and a backend restart ends them all), or its display was revoked. Get a fresh link from the next message.
+- `MEDIA_NOT_FOUND` (404): the media isn't used by any experience on the display's Box.
+
 ## Display connection (websocket `/ws/display`)
 
 On the display's websocket an error is a message with `"type": "error"` whose `payload` has the same fields as the

@@ -49,6 +49,6 @@ public class VerifyDisplayTokenUseCase {
             session.setLastSeenAt(now);
             session.setExpiresAt(now.plus(properties.sessionLifetime()));
         }
-        return new PlayerDisplayView(session.getId(), box.getId(), box.getOrgId());
+        return new PlayerDisplayView(session.getId(), box.getId(), box.getOrgId(), session.getOrgName());
     }
 }

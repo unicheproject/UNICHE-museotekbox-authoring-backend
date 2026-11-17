@@ -4,6 +4,7 @@ import com.museotek.box.application.orgaccess.OrgAccessGuard;
 import com.museotek.box.application.secret.SecretTokens;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.display.DisplaySession;
+import com.museotek.box.infrastructure.catalogue.CatalogueOrganisationDto;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import com.museotek.box.infrastructure.repository.DisplaySessionRepository;
 import com.museotek.box.infrastructure.security.CurrentPrincipal;
@@ -40,7 +41,7 @@ public class CreateDisplaySessionUseCase {
     }
 
     public CreatedDisplaySession execute(UUID orgId, Long boxId) {
-        orgAccessGuard.requireManager(orgId);
+        CatalogueOrganisationDto org = orgAccessGuard.requireManager(orgId);
         boxRepository.findByIdAndOrgId(boxId, orgId)
                 .orElseThrow(() -> new BoxNotFoundException("No box " + boxId + " for org " + orgId));
 
@@ -50,6 +51,7 @@ public class CreateDisplaySessionUseCase {
         session.setId(UUID.randomUUID());
         session.setBoxId(boxId);
         session.setTokenHash(SecretTokens.sha256Hex(token));
+        session.setOrgName(org.name());
         session.setCreatedBy(CurrentPrincipal.subject().orElse(null));
         session.setCreatedAt(now);
         session.setExpiresAt(now.plus(properties.sessionLifetime()));

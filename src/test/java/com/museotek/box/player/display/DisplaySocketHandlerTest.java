@@ -42,7 +42,7 @@ class DisplaySocketHandlerTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-17T10:00:00Z"), ZoneOffset.UTC);
     private static final ObjectMapper JSON = JsonMapper.builder().findAndAddModules()
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
-    private static final PlayerDisplayView DISPLAY = new PlayerDisplayView(UUID.randomUUID(), 7L, UUID.randomUUID());
+    private static final PlayerDisplayView DISPLAY = new PlayerDisplayView(UUID.randomUUID(), 7L, UUID.randomUUID(), "Museum");
 
     private final VerifyDisplayTokenUseCase verify = mock(VerifyDisplayTokenUseCase.class);
     private final PlayerTimer timer = mock(PlayerTimer.class);
@@ -196,7 +196,7 @@ class DisplaySocketHandlerTest {
 
     @Test
     void aSecondDisplayForTheSameBox_replacesTheFirst() {
-        PlayerDisplayView newer = new PlayerDisplayView(UUID.randomUUID(), DISPLAY.boxId(), DISPLAY.orgId());
+        PlayerDisplayView newer = new PlayerDisplayView(UUID.randomUUID(), DISPLAY.boxId(), DISPLAY.orgId(), "Museum");
         when(verify.execute("first")).thenReturn(DISPLAY);
         when(verify.execute("second")).thenReturn(newer);
         FakeSession first = open();
@@ -213,7 +213,7 @@ class DisplaySocketHandlerTest {
 
     @Test
     void theReplacedDisplayClosing_doesNotForgetTheNewOne() {
-        PlayerDisplayView newer = new PlayerDisplayView(UUID.randomUUID(), DISPLAY.boxId(), DISPLAY.orgId());
+        PlayerDisplayView newer = new PlayerDisplayView(UUID.randomUUID(), DISPLAY.boxId(), DISPLAY.orgId(), "Museum");
         when(verify.execute("first")).thenReturn(DISPLAY);
         when(verify.execute("second")).thenReturn(newer);
         FakeSession first = open();
@@ -229,7 +229,7 @@ class DisplaySocketHandlerTest {
 
     @Test
     void displaysOfOtherBoxes_areNotReplaced() {
-        PlayerDisplayView otherBox = new PlayerDisplayView(UUID.randomUUID(), 8L, DISPLAY.orgId());
+        PlayerDisplayView otherBox = new PlayerDisplayView(UUID.randomUUID(), 8L, DISPLAY.orgId(), "Museum");
         when(verify.execute("first")).thenReturn(DISPLAY);
         when(verify.execute("other")).thenReturn(otherBox);
         FakeSession first = open();
@@ -242,7 +242,7 @@ class DisplaySocketHandlerTest {
 
     @Test
     void revokingADisplay_closesItsConnection_butNotOthers() {
-        PlayerDisplayView otherBox = new PlayerDisplayView(UUID.randomUUID(), 8L, DISPLAY.orgId());
+        PlayerDisplayView otherBox = new PlayerDisplayView(UUID.randomUUID(), 8L, DISPLAY.orgId(), "Museum");
         when(verify.execute("the-token")).thenReturn(DISPLAY);
         when(verify.execute("other")).thenReturn(otherBox);
         FakeSession revoked = open();
