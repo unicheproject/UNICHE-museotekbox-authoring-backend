@@ -49,7 +49,11 @@ public class GetBoxForPlayerQuery {
                 .filter(GetBoxForPlayerQuery::isPlayable)
                 .map(card -> new PlayerScanObject(card.getRfidTag(), card.getScanObjectType().getId()))
                 .toList();
-        return new PlayerBoxView(box, experiences, scanObjectTypeRepository.findByOrgId(box.getOrgId()), scanObjects);
+        List<PlayerBoxView.CardType> cardTypes = scanObjectTypeRepository.findByOrgId(box.getOrgId()).stream()
+                .map(type -> new PlayerBoxView.CardType(type.getId(), type.getName(), type.isUniversal(), type.isExit()))
+                .toList();
+        return new PlayerBoxView(new PlayerBoxView.BoxSummary(box.getId(), box.getOrgId(), box.getName()),
+                experiences, cardTypes, scanObjects);
     }
 
     private static boolean isPlayable(ScanObject card) {

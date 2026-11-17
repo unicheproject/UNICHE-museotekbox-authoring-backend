@@ -56,10 +56,10 @@ class GetBoxForPlayerQueryTest {
 
         PlayerBoxView view = query.execute(1L);
 
-        assertThat(view.box()).isSameAs(box);
+        assertThat(view.box()).isEqualTo(new PlayerBoxView.BoxSummary(1L, orgId, "Hall A"));
         assertThat(view.experiences()).containsExactly(
                 new PlayerExperience(project.getId(), "Wing", 3, ExperienceOutput.BOX, 7L));
-        assertThat(view.cardTypes()).containsExactly(red);
+        assertThat(view.cardTypes()).containsExactly(new PlayerBoxView.CardType(7L, red.getName(), false, false));
     }
 
     @Test
@@ -76,6 +76,7 @@ class GetBoxForPlayerQueryTest {
         Box box = new Box();
         box.setId(1L);
         box.setOrgId(orgId);
+        box.setName("Hall A");
         return box;
     }
 

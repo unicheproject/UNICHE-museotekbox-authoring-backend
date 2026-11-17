@@ -93,6 +93,16 @@ the current experience document instead.
   `defaults` not a JSON object or over 64 KB.
 - `TEMPLATE_NOT_EDITABLE` (403): global templates can't be changed or deleted.
 
+## Box API (`/box/**`)
+
+Called by the Box with its Box key as `Authorization: Bearer <key>`. A manager makes the key in the CMS
+(`POST /api/v1/organisations/{orgId}/boxes/{boxId}/key`); it is shown once.
+
+- `BOX_KEY_INVALID` (401): no key, or it is unknown, was replaced by a newer key, or was removed. The Box needs a new
+  key from the CMS. A user's login token and the serial number are refused here too.
+- `EXPERIENCE_NOT_PUBLISHED` (404): the experience isn't (or is no longer) on this Box. Sync again.
+- `MEDIA_NOT_FOUND` (404): no experience on this Box uses the media.
+
 ## Display API (`/display/**`)
 
 Called by the display page with its display token as `Authorization: Bearer <token>`; media with a signed link

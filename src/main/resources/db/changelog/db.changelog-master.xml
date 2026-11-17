@@ -22,5 +22,6 @@
     <include file="sql/15-display-sessions.sql" relativeToChangelogFile="true"/>
     <include file="sql/16-drop-screens.sql" relativeToChangelogFile="true"/>
     <include file="sql/17-display-session-org-name.sql" relativeToChangelogFile="true"/>
+    <include file="sql/18-box-keys.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

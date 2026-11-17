@@ -55,8 +55,8 @@ class DisplayQueriesTest {
 
     private final GetDisplayIdleQuery idle =
             new GetDisplayIdleQuery(boxRepository, publishedRepository, cardTypeRepository);
-    private final GetDisplayMediaQuery media = new GetDisplayMediaQuery(links, sessionRepository, publishedRepository,
-            mediaRepository, mediaStorage, CLOCK);
+    private final GetDisplayMediaQuery media = new GetDisplayMediaQuery(links, sessionRepository,
+            new GetMediaOnBoxQuery(publishedRepository, mediaRepository, mediaStorage), CLOCK);
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID sessionId = UUID.randomUUID();

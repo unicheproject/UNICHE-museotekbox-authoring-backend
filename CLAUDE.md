@@ -75,8 +75,11 @@ token needed).
 **Devices (the player package):**
 - A display (the TV next to a Box) logs in with a display token that a manager creates in the CMS ("Open display"). It
   is tied to one Box, stored as a SHA-256 fingerprint only, shown once, revocable, and expires after 30 days unused.
-  It is sent in the websocket's first message (`hello`), never in a URL. A Box logs in with its serial number, which
-  is treated as a secret: never in URLs, logs or responses.
+  It is sent in the websocket's first message (`hello`), never in a URL.
+- A Box logs in with its Box key: made by a manager in the CMS, shown once, stored as a SHA-256 fingerprint only,
+  one per Box (a new key replaces the old at once), removable. Sent as a Bearer token on `/box/**`; it decides the
+  Box, so a Box only reads its own experiences and media. The serial number is no credential there, but is still
+  treated as a secret (never in URLs, logs or responses) until `/player/v1` is removed.
 - A display token proves its Box: the display only ever sees that Box. Checked in the use cases, with tests.
 - One display per Box is connected at a time; the newest wins. No limit on wrong tokens (256 random bits); more
   than 10 logins/min of one display → blocked 1 min, never per IP (a museum shares one). Numbers are settings.
@@ -92,7 +95,7 @@ Export and erase: `scripts/gdpr/` (update it when a column like these is added).
 No personal data in logs, URLs or error messages; no production data in development or tests. Say so whenever a change
 adds personal data or a new purpose. This is engineering practice, not legal advice.
 
-**Triggers for a security review:** authentication, roles and access guards, device login (display tokens,
+**Triggers for a security review:** authentication, roles and access guards, device login (display tokens, Box keys,
 serials), websocket message handling, rate limits, input validation, file handling (media
 uploads), queries, secrets or configuration, logging, personal data, dependencies or the build, the API contract. Then
 go through: every endpoint authenticated unless explicitly public; every role rule covered by a test; error responses

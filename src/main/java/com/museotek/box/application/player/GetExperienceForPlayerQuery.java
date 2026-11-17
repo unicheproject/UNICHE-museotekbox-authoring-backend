@@ -55,8 +55,15 @@ public class GetExperienceForPlayerQuery {
                 .orElseThrow(() -> notOnBox(boxId, projectId));
 
         List<UUID> mediaIds = latest.getMediaIds().stream().map(UUID::fromString).toList();
-        List<Media> media = mediaRepository.findAllById(mediaIds);
+        List<PlayerExperienceCopy.MediaFile> media = mediaRepository.findAllById(mediaIds).stream()
+                .map(GetExperienceForPlayerQuery::file)
+                .toList();
         return new PlayerExperienceCopy(PlayerExperience.of(latest), latest.getPublishedAt(), latest.getContent(), media);
+    }
+
+    private static PlayerExperienceCopy.MediaFile file(Media media) {
+        return new PlayerExperienceCopy.MediaFile(media.getId(), media.getKind(), media.getContentType(),
+                media.getSizeBytes(), media.getSha256());
     }
 
     private static ExperienceNotPublishedException notOnBox(Long boxId, UUID projectId) {

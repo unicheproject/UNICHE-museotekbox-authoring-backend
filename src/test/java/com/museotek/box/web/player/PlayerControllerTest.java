@@ -19,7 +19,6 @@ import com.museotek.box.domain.media.Media;
 import com.museotek.box.domain.media.MediaKind;
 import com.museotek.box.domain.media.MediaNotFoundException;
 import com.museotek.box.domain.publish.ExperienceNotPublishedException;
-import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.web.error.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
@@ -112,13 +111,9 @@ class PlayerControllerTest {
 
     @Test
     void box_comesWithExperiencesCardTypesTagsAndThePollInterval() throws Exception {
-        ScanObjectType exit = new ScanObjectType();
-        exit.setId(9L);
-        exit.setName("Exit");
-        exit.setExit(true);
-        when(getBoxQuery.execute(12L)).thenReturn(new PlayerBoxView(box(),
+        when(getBoxQuery.execute(12L)).thenReturn(new PlayerBoxView(new PlayerBoxView.BoxSummary(12L, orgId, "Hall A"),
                 List.of(new PlayerExperience(projectId, "Wing", 3, ExperienceOutput.DISPLAY, 7L)),
-                List.of(exit),
+                List.of(new PlayerBoxView.CardType(9L, "Exit", false, true)),
                 List.of(new PlayerScanObject("04A1", 9L))));
 
         mockMvc.perform(get("/player/v1/boxes/{boxId}", 12L))
@@ -139,12 +134,8 @@ class PlayerControllerTest {
     @Test
     void experience_passesTheContentThroughAsJson_withItsMediaList() throws Exception {
         UUID mediaId = UUID.randomUUID();
-        Media media = new Media();
-        media.setId(mediaId);
-        media.setKind(MediaKind.VIDEO);
-        media.setContentType("video/mp4");
-        media.setSizeBytes(48211311L);
-        media.setSha256("ab12");
+        PlayerExperienceCopy.MediaFile media =
+                new PlayerExperienceCopy.MediaFile(mediaId, MediaKind.VIDEO, "video/mp4", 48211311L, "ab12");
         when(getExperienceQuery.execute(12L, projectId)).thenReturn(new PlayerExperienceCopy(
                 new PlayerExperience(projectId, "Wing", 3, ExperienceOutput.DISPLAY, 7L),
                 Instant.parse("2026-11-03T10:00:00Z"),

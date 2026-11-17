@@ -16,6 +16,8 @@ import java.util.UUID;
 public interface BoxRepository extends JpaRepository<Box, Long> {
     Optional<Box> findBySerialNumber(String serialNumber);
 
+    Optional<Box> findByKeyHash(String keyHash);
+
     List<Box> findByOrgId(UUID orgId);
 
     // Scoped by construction: a wrong-org guess against Box's low-cardinality Long id 404s here

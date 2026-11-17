@@ -3,6 +3,7 @@ package com.museotek.box.application.player;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.media.Media;
+import com.museotek.box.domain.media.MediaKind;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.publish.ExperienceNotPublishedException;
 import com.museotek.box.domain.publish.PublishedExperience;
@@ -49,6 +50,11 @@ class GetExperienceForPlayerQueryTest {
     void theLatestCopy_comesWithItsMedia() {
         UUID mediaId = UUID.randomUUID();
         Media media = new Media();
+        media.setId(mediaId);
+        media.setKind(MediaKind.VIDEO);
+        media.setContentType("video/mp4");
+        media.setSizeBytes(1234L);
+        media.setSha256("ab12");
         when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId)).thenReturn(Optional.of(
                 new PublishedExperience(project, 4, "Wing", ExperienceOutput.DISPLAY, 7L, "{\"scenes\":[]}",
                         List.of(mediaId.toString()), List.of(7L), PUBLISHED, "someone")));
@@ -59,7 +65,8 @@ class GetExperienceForPlayerQueryTest {
         assertThat(copy.experience()).isEqualTo(new PlayerExperience(projectId, "Wing", 4, ExperienceOutput.DISPLAY, 7L));
         assertThat(copy.publishedAt()).isEqualTo(PUBLISHED);
         assertThat(copy.content()).isEqualTo("{\"scenes\":[]}");
-        assertThat(copy.media()).containsExactly(media);
+        assertThat(copy.media()).containsExactly(
+                new PlayerExperienceCopy.MediaFile(mediaId, MediaKind.VIDEO, "video/mp4", 1234L, "ab12"));
     }
 
     @Test

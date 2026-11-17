@@ -1,13 +1,21 @@
 package com.museotek.box.application.player;
 
-import com.museotek.box.domain.box.Box;
-import com.museotek.box.domain.scanobject.ScanObjectType;
-
 import java.util.List;
+import java.util.UUID;
 
-/** Everything the player project needs to run a Box, apart from the experiences' content. */
-public record PlayerBoxView(Box box, List<PlayerExperience> experiences, List<ScanObjectType> cardTypes,
+/**
+ * Everything a Box needs to run, apart from the experiences' content. Plain values only, no entities, so the player
+ * package can hold and send it.
+ */
+public record PlayerBoxView(BoxSummary box, List<PlayerExperience> experiences, List<CardType> cardTypes,
                             List<PlayerScanObject> scanObjects) {
+
+    /** The Box itself. No serial number: it is private and nobody downstream needs it. */
+    public record BoxSummary(Long id, UUID orgId, String name) {
+    }
+
+    public record CardType(Long id, String name, boolean universal, boolean exit) {
+    }
 
     public PlayerBoxView {
         experiences = List.copyOf(experiences);

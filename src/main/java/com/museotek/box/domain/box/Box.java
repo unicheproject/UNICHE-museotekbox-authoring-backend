@@ -44,6 +44,13 @@ public class Box {
     @Column(name = "serial_number", nullable = false, unique = true, length = 255)
     private String serialNumber;
 
+    // SHA-256 (hex) of the Box's login key; null until a manager makes one. The key itself is shown once.
+    @Column(name = "key_hash", unique = true, length = 64)
+    private String keyHash;
+
+    @Column(name = "key_created_at")
+    private Instant keyCreatedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 255)
     private BoxStatus status = BoxStatus.OFFLINE;
