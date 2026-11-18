@@ -17,6 +17,7 @@ import com.museotek.box.infrastructure.repository.BoxRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
 import java.util.List;
@@ -39,8 +40,10 @@ class AssignProjectToBoxUseCaseTest {
     private final ProjectRepository projectRepository = mock(ProjectRepository.class);
     private final PublishedExperienceRepository publishedExperienceRepository = mock(PublishedExperienceRepository.class);
     private final BoxStartCards boxStartCards = mock(BoxStartCards.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final AssignProjectToBoxUseCase useCase = new AssignProjectToBoxUseCase(
-            orgAccessGuard, projectAccessGuard, boxRepository, projectRepository, publishedExperienceRepository, boxStartCards);
+            orgAccessGuard, projectAccessGuard, boxRepository, projectRepository, publishedExperienceRepository, boxStartCards,
+            events);
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID projectId = UUID.randomUUID();
@@ -59,6 +62,7 @@ class AssignProjectToBoxUseCaseTest {
 
         assertThat(box.getAssignedProjects()).containsExactly(project);
         verify(boxStartCards).requireFreeOnBox(1L, projectId, 7L);
+        verify(events).publishEvent(new BoxesNeedSyncEvent(List.of(1L)));
     }
 
     @Test

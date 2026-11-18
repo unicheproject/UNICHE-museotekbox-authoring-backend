@@ -114,25 +114,32 @@ instead.
   and a backend restart ends them all), or its display was revoked. Get a fresh link from the next message.
 - `MEDIA_NOT_FOUND` (404): the media isn't used by any experience on the display's Box.
 
-## Display connection (websocket `/ws/display`)
+## Display and Box connections (websockets `/ws/display`, `/ws/box`)
 
-On the display's websocket an error is a message with `"type": "error"` whose `payload` has the same fields as the
-HTTP error. Its `requestId` is the connection's id in the backend log. "Closes" means the tool then closes the
-connection with code 1008 and the error code as reason: don't reconnect after a 1008.
+On both websockets an error is a message with `"type": "error"` whose `payload` has the same fields as the HTTP error.
+Its `requestId` is the connection's id in the backend log. "Closes" means the tool then closes the connection with
+code 1008 and the error code as reason: don't reconnect after a 1008.
 
-- `DISPLAY_TOKEN_INVALID`: the display token is unknown, revoked or expired, or its Box was deleted. Closes. The
-  display has to be opened again from the CMS.
-- `TOO_MANY_RECONNECTS`: this display logged in too often within a minute; try again in a minute. Closes.
+- `DISPLAY_TOKEN_INVALID` (display): the display token is unknown, revoked or expired, or its Box was deleted. Closes.
+  The display has to be opened again from the CMS.
+- `BOX_KEY_INVALID` (Box): the Box key is unknown, was replaced, or was removed. Closes. The Box needs a new key from
+  the CMS.
+- `TOO_MANY_RECONNECTS`: this display or Box logged in too often within a minute; try again in a minute. Closes.
 - `LOGIN_TIMEOUT`: no `hello` within 5 seconds of connecting. Closes.
-- `MALFORMED_MESSAGE`: not a JSON object with a text `type`, or `hello` without a text `payload.token` (or a far too
-  long one). Closes before login.
+- `MALFORMED_MESSAGE`: not a JSON object with a text `type`, or `hello` without a text `payload.token` (display) or
+  `payload.key` (Box), or a far too long one. Closes before login.
 - `MESSAGE_NOT_ALLOWED`: a message type that isn't accepted at this point (before login: anything but `hello`).
   Closes before login.
 - `INTERNAL_ERROR`: an unexpected error in the backend. Closes (code 1011) before login.
 
 Not errors, but the tool also ends a connection with these messages, closing with 1008 and the reason shown:
-- `session.replaced` (`SESSION_REPLACED`): another display connected for the same Box; only the newest stays.
-- `session.revoked` (`SESSION_REVOKED`): a manager revoked this display, or deleted its Box.
+- `session.replaced` (`SESSION_REPLACED`): another connection for the same Box (another display, or the Box
+  again) logged in; only the newest stays.
+- `session.revoked` (`SESSION_REVOKED`): a manager revoked this display, replaced or removed this Box's key, or
+  deleted the Box.
+
+The tool pings every connection every 25 seconds (a websocket ping, which browsers and websocket libraries answer by
+themselves) and closes one that hasn't answered for 60 seconds, with code 4500. Reconnect after that.
 
 A message over 8192 characters closes the connection with code 1009.
 

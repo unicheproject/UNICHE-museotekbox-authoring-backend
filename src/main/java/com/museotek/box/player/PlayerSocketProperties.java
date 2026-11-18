@@ -19,6 +19,8 @@ public record PlayerSocketProperties(
         @NotEmpty List<String> allowedOrigins,
         @NotNull Duration loginTimeout,
         @Positive int loginsPerMinute,
-        @NotNull Duration loginBlock
+        @NotNull Duration loginBlock,
+        @NotNull Duration pingInterval,
+        @NotNull Duration pongTimeout
 ) {
 }

@@ -43,5 +43,9 @@ public class DeleteBoxUseCase {
         if (!openDisplays.isEmpty()) {
             events.publishEvent(new DisplaySessionsRevokedEvent(openDisplays));
         }
+        // Its key went with it: a connected Box is closed.
+        if (box.getKeyHash() != null) {
+            events.publishEvent(new BoxKeyChangedEvent(boxId));
+        }
     }
 }

@@ -1,4 +1,4 @@
-package com.museotek.box.player.display;
+package com.museotek.box.player.socket;
 
 import com.museotek.box.player.PlayerSocketProperties;
 import org.slf4j.Logger;
@@ -12,12 +12,11 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /**
- * How often one display logs in, against a reconnect loop. Never per IP address, because a museum's devices usually
- * share one. No limit on wrong tokens: they are 256 random bits, so guessing one is hopeless. In memory: only one
- * copy of the app is active.
+ * How often one device logs in, against a reconnect loop. Keyed by the device (a display session's id, a Box's id),
+ * never by IP address, because a museum's devices usually share one. No limit on wrong tokens: they are 256 random
+ * bits, so guessing one is hopeless. In memory: only one copy of the app is active.
  */
 @Component
 class LoginLimits {
@@ -28,34 +27,34 @@ class LoginLimits {
     private final Clock clock;
     private final PlayerSocketProperties properties;
 
-    private final Map<UUID, Deque<Instant>> loginsBySession = new HashMap<>();
-    private final Map<UUID, Instant> blockedUntil = new HashMap<>();
+    private final Map<Object, Deque<Instant>> loginsByDevice = new HashMap<>();
+    private final Map<Object, Instant> blockedUntil = new HashMap<>();
 
     LoginLimits(Clock clock, PlayerSocketProperties properties) {
         this.clock = clock;
         this.properties = properties;
     }
 
-    /** Counts a login of this display. False if it logs in too often and is (now) blocked for a while. */
-    synchronized boolean allowLogin(UUID sessionId) {
+    /** Counts a login of this device. False if it logs in too often and is (now) blocked for a while. */
+    synchronized boolean allowLogin(Object deviceKey) {
         Instant now = clock.instant();
-        Instant blocked = blockedUntil.get(sessionId);
+        Instant blocked = blockedUntil.get(deviceKey);
         if (blocked != null) {
             if (now.isBefore(blocked)) {
                 return false;
             }
-            blockedUntil.remove(sessionId);
+            blockedUntil.remove(deviceKey);
         }
-        Deque<Instant> logins = loginsBySession.computeIfAbsent(sessionId, id -> new ArrayDeque<>());
+        Deque<Instant> logins = loginsByDevice.computeIfAbsent(deviceKey, key -> new ArrayDeque<>());
         while (!logins.isEmpty() && !logins.peekFirst().isAfter(now.minus(MINUTE))) {
             logins.removeFirst();
         }
         logins.addLast(now);
         if (logins.size() > properties.loginsPerMinute()) {
-            blockedUntil.put(sessionId, now.plus(properties.loginBlock()));
-            loginsBySession.remove(sessionId);
-            log.warn("Display {} logged in more than {} times within a minute: blocked until {}",
-                    sessionId, properties.loginsPerMinute(), now.plus(properties.loginBlock()));
+            blockedUntil.put(deviceKey, now.plus(properties.loginBlock()));
+            loginsByDevice.remove(deviceKey);
+            log.warn("Device {} logged in more than {} times within a minute: blocked until {}",
+                    deviceKey, properties.loginsPerMinute(), now.plus(properties.loginBlock()));
             return false;
         }
         return true;

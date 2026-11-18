@@ -77,14 +77,15 @@ token needed).
   is tied to one Box, stored as a SHA-256 fingerprint only, shown once, revocable, and expires after 30 days unused.
   It is sent in the websocket's first message (`hello`), never in a URL.
 - A Box logs in with its Box key: made by a manager in the CMS, shown once, stored as a SHA-256 fingerprint only,
-  one per Box (a new key replaces the old at once), removable. Sent as a Bearer token on `/box/**`; it decides the
+  one per Box (a new key replaces the old at once), removable. Sent as a Bearer token on `/box/**` and in the `hello` of `/ws/box`; it decides the
   Box, so a Box only reads its own experiences and media. The serial number is no credential there, but is still
   treated as a secret (never in URLs, logs or responses) until `/player/v1` is removed.
 - A display token proves its Box: the display only ever sees that Box. Checked in the use cases, with tests.
 - One display per Box is connected at a time; the newest wins. No limit on wrong tokens (256 random bits); more
   than 10 logins/min of one display → blocked 1 min, never per IP (a museum shares one). Numbers are settings.
-- Running visits and Box locks live in memory: a restart ends visits, screens re-claim their Box. So only one copy of
-  the app is active at a time (a standby takes over on failure).
+- Who is connected for each Box (one Box connection, one display connection; the newest wins) lives in memory: a
+  restart drops every connection and marks every Box offline, and the devices reconnect. So only one copy of the app
+  is active at a time (a standby takes over on failure). Media-link signing keys are in memory for the same reason.
 
 **Personal data (GDPR):** we store the JWT subject, email, username, display name and first/last seen
 time of users (`users`), the author's subject and name on comments (`comments.author_subject`, `author_name`), and the

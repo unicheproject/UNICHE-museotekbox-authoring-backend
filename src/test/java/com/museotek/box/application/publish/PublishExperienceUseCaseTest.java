@@ -2,6 +2,7 @@ package com.museotek.box.application.publish;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.museotek.box.application.box.BoxStartCards;
+import com.museotek.box.application.box.BoxesNeedSyncEvent;
 import com.museotek.box.application.experience.ExperienceGaps;
 import com.museotek.box.application.experience.ExperienceView;
 import com.museotek.box.application.experience.GetExperienceQuery;
@@ -20,10 +21,12 @@ import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scene.Scene;
 import com.museotek.box.infrastructure.catalogue.CatalogueNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
+import com.museotek.box.infrastructure.repository.BoxRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -54,10 +57,12 @@ class PublishExperienceUseCaseTest {
     private final ExperienceGaps experienceGaps = mock(ExperienceGaps.class);
     private final BoxStartCards boxStartCards = mock(BoxStartCards.class);
     private final PublishWarnings publishWarnings = mock(PublishWarnings.class);
+    private final BoxRepository boxRepository = mock(BoxRepository.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final PublishExperienceUseCase useCase = new PublishExperienceUseCase(
             projectAccessGuard, orgAccessGuard, projectRepository, publishedExperienceRepository, getExperienceQuery,
             experienceGaps, boxStartCards, new PublishedContentMapper(new ObjectMapper()), publishWarnings,
-            Clock.fixed(NOW, ZoneOffset.UTC));
+            boxRepository, events, Clock.fixed(NOW, ZoneOffset.UTC));
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID projectId = UUID.randomUUID();
@@ -98,6 +103,26 @@ class PublishExperienceUseCaseTest {
     }
 
     @Test
+    void aNewVersion_tellsTheBoxesThatHaveItToSync() {
+        stubReadyDraft();
+        when(boxRepository.findIdsByAssignedProject(projectId)).thenReturn(List.of(4L, 9L));
+
+        useCase.execute(projectId);
+
+        verify(events).publishEvent(new BoxesNeedSyncEvent(List.of(4L, 9L)));
+    }
+
+    @Test
+    void aNewVersion_onNoBox_tellsNobody() {
+        stubReadyDraft();
+        when(boxRepository.findIdsByAssignedProject(projectId)).thenReturn(List.of());
+
+        useCase.execute(projectId);
+
+        verify(events, never()).publishEvent(any());
+    }
+
+    @Test
     void unchangedDraft_isANoOp_returningTheLatestVersion() {
         stubAccess();
         when(projectRepository.findByIdForUpdate(projectId)).thenReturn(Optional.of(project));
@@ -109,7 +134,7 @@ class PublishExperienceUseCaseTest {
         assertThat(status.version()).isEqualTo(2);
         assertThat(status.hasUnpublishedChanges()).isFalse();
         verify(publishedExperienceRepository, never()).save(any());
-        verifyNoInteractions(experienceGaps, getExperienceQuery);
+        verifyNoInteractions(experienceGaps, getExperienceQuery, events);
     }
 
     @Test

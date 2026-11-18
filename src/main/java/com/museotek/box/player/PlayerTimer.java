@@ -11,7 +11,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-/** One thread for the player's timers (login deadlines now, scene timers later). Tasks must be short. */
+/** One thread for the player's timers (login deadlines, pings). Tasks must be short. */
 @Component
 public class PlayerTimer implements DisposableBean {
 
@@ -32,6 +32,18 @@ public class PlayerTimer implements DisposableBean {
                 log.error("Player timer task failed", e);
             }
         }, delay.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    /** Runs the task every {@code period}, first after one period. A failing run is logged; the next still runs. */
+    public ScheduledFuture<?> scheduleAtFixedRate(Runnable task, Duration period) {
+        return executor.scheduleAtFixedRate(() -> {
+            // An exception would silently cancel every later run.
+            try {
+                task.run();
+            } catch (RuntimeException e) {
+                log.error("Player timer task failed", e);
+            }
+        }, period.toMillis(), period.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override

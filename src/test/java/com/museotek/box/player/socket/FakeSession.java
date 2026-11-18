@@ -1,9 +1,10 @@
-package com.museotek.box.player.display;
+package com.museotek.box.player.socket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.PingMessage;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketExtension;
 import org.springframework.web.socket.WebSocketMessage;
@@ -24,6 +25,7 @@ class FakeSession implements WebSocketSession {
 
     private final Map<String, Object> attributes = new HashMap<>();
     private final List<String> sent = new ArrayList<>();
+    private int pings;
     private CloseStatus closeStatus;
 
     List<JsonNode> sentMessages() {
@@ -32,6 +34,10 @@ class FakeSession implements WebSocketSession {
 
     JsonNode lastMessage() {
         return read(sent.get(sent.size() - 1));
+    }
+
+    int pings() {
+        return pings;
     }
 
     CloseStatus closeStatus() {
@@ -48,6 +54,10 @@ class FakeSession implements WebSocketSession {
 
     @Override
     public void sendMessage(WebSocketMessage<?> message) {
+        if (message instanceof PingMessage) {
+            pings++;
+            return;
+        }
         sent.add(((TextMessage) message).getPayload());
     }
 

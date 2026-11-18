@@ -1,4 +1,4 @@
-package com.museotek.box.player.display;
+package com.museotek.box.player.socket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -160,6 +160,7 @@ class DisplaySocketIntegrationTest {
         client.hello(display.token());
         JsonNode reply = client.next();
         assertThat(reply.get("type").asText()).isEqualTo("hello.ok");
+        assertThat(client.next().get("type").asText()).isEqualTo("box.presence");
         return client;
     }
 

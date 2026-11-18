@@ -11,9 +11,11 @@ import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -32,6 +34,7 @@ public class AssignProjectToBoxUseCase {
     private final ProjectRepository projectRepository;
     private final PublishedExperienceRepository publishedExperienceRepository;
     private final BoxStartCards boxStartCards;
+    private final ApplicationEventPublisher events;
 
     public AssignProjectToBoxUseCase(
             OrgAccessGuard orgAccessGuard,
@@ -39,7 +42,8 @@ public class AssignProjectToBoxUseCase {
             BoxRepository boxRepository,
             ProjectRepository projectRepository,
             PublishedExperienceRepository publishedExperienceRepository,
-            BoxStartCards boxStartCards
+            BoxStartCards boxStartCards,
+            ApplicationEventPublisher events
     ) {
         this.orgAccessGuard = orgAccessGuard;
         this.projectAccessGuard = projectAccessGuard;
@@ -47,6 +51,7 @@ public class AssignProjectToBoxUseCase {
         this.projectRepository = projectRepository;
         this.publishedExperienceRepository = publishedExperienceRepository;
         this.boxStartCards = boxStartCards;
+        this.events = events;
     }
 
     @Transactional
@@ -72,5 +77,6 @@ public class AssignProjectToBoxUseCase {
         boxStartCards.requireFreeOnBox(boxId, projectId, latest.getStartCardTypeId());
 
         box.getAssignedProjects().add(projectRepository.getReferenceById(projectId));
+        events.publishEvent(new BoxesNeedSyncEvent(List.of(boxId)));
     }
 }

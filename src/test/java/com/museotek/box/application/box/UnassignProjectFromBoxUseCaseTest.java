@@ -7,13 +7,18 @@ import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -21,8 +26,9 @@ class UnassignProjectFromBoxUseCaseTest {
 
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
     private final BoxRepository boxRepository = mock(BoxRepository.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final UnassignProjectFromBoxUseCase useCase =
-            new UnassignProjectFromBoxUseCase(orgAccessGuard, boxRepository);
+            new UnassignProjectFromBoxUseCase(orgAccessGuard, boxRepository, events);
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID projectId = UUID.randomUUID();
@@ -38,6 +44,7 @@ class UnassignProjectFromBoxUseCaseTest {
         useCase.execute(orgId, 1L, projectId);
 
         assertThat(box.getAssignedProjects()).containsExactly(other);
+        verify(events).publishEvent(new BoxesNeedSyncEvent(List.of(1L)));
     }
 
     @Test
@@ -48,6 +55,7 @@ class UnassignProjectFromBoxUseCaseTest {
         useCase.execute(orgId, 1L, projectId);
 
         assertThat(box.getAssignedProjects()).isEmpty();
+        verify(events, never()).publishEvent(any());
     }
 
     @Test

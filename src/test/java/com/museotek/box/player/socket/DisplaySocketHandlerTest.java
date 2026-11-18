@@ -1,10 +1,11 @@
-package com.museotek.box.player.display;
+package com.museotek.box.player.socket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.museotek.box.application.display.DisplaySessionsRevokedEvent;
+import com.museotek.box.application.player.BoxPresenceUseCase;
 import com.museotek.box.application.player.PlayerDisplayView;
 import com.museotek.box.application.player.VerifyDisplayTokenUseCase;
 import com.museotek.box.domain.display.InvalidDisplayTokenException;
@@ -47,14 +48,15 @@ class DisplaySocketHandlerTest {
     private final VerifyDisplayTokenUseCase verify = mock(VerifyDisplayTokenUseCase.class);
     private final PlayerTimer timer = mock(PlayerTimer.class);
     private final ScheduledFuture<?> deadline = mock(ScheduledFuture.class);
-    private final DisplayConnections connections = new DisplayConnections();
+    private final BoxPresenceUseCase presence = mock(BoxPresenceUseCase.class);
+    private final Connections connections = new Connections(presence);
 
     private DisplaySocketHandler handler = handler(LoginLimitsTest.properties(10));
 
     private DisplaySocketHandler handler(PlayerSocketProperties properties) {
         doReturn(deadline).when(timer).schedule(any(), any());
         when(deadline.cancel(false)).thenReturn(true);
-        return new DisplaySocketHandler(verify, new LoginLimits(CLOCK, properties), connections, timer, properties,
+        return new DisplaySocketHandler(verify, connections, new LoginLimits(CLOCK, properties), timer, properties,
                 JSON, CLOCK);
     }
 
@@ -94,7 +96,7 @@ class DisplaySocketHandlerTest {
 
         hello(session, "the-token");
 
-        JsonNode reply = session.lastMessage();
+        JsonNode reply = session.sentMessages().get(0);
         assertThat(reply.get("v").asInt()).isEqualTo(1);
         assertThat(reply.get("type").asText()).isEqualTo("hello.ok");
         assertThat(reply.get("seq").asLong()).isEqualTo(1);
@@ -132,7 +134,7 @@ class DisplaySocketHandlerTest {
         assertThat(session.isOpen()).isTrue();
         verify(verify).execute("the-token");
         List<Long> seqs = session.sentMessages().stream().map(m -> m.get("seq").asLong()).toList();
-        assertThat(seqs).containsExactly(1L, 2L, 3L, 4L);
+        assertThat(seqs).containsExactly(1L, 2L, 3L, 4L, 5L);
     }
 
     @Test
@@ -207,7 +209,7 @@ class DisplaySocketHandlerTest {
 
         assertThat(first.lastMessage().get("type").asText()).isEqualTo("session.replaced");
         assertThat(first.closeStatus()).isEqualTo(CloseStatus.POLICY_VIOLATION.withReason("SESSION_REPLACED"));
-        assertThat(second.lastMessage().get("type").asText()).isEqualTo("hello.ok");
+        assertThat(second.sentMessages().get(0).get("type").asText()).isEqualTo("hello.ok");
         assertThat(second.isOpen()).isTrue();
     }
 
@@ -222,7 +224,7 @@ class DisplaySocketHandlerTest {
         hello(second, "second");
 
         handler.afterConnectionClosed(first, CloseStatus.POLICY_VIOLATION);
-        connections.onSessionsRevoked(new DisplaySessionsRevokedEvent(List.of(newer.sessionId())));
+        connections.onDisplaySessionsRevoked(new DisplaySessionsRevokedEvent(List.of(newer.sessionId())));
 
         assertThat(second.lastMessage().get("type").asText()).isEqualTo("session.revoked");
     }
@@ -250,7 +252,7 @@ class DisplaySocketHandlerTest {
         FakeSession kept = open();
         hello(kept, "other");
 
-        connections.onSessionsRevoked(new DisplaySessionsRevokedEvent(List.of(DISPLAY.sessionId())));
+        connections.onDisplaySessionsRevoked(new DisplaySessionsRevokedEvent(List.of(DISPLAY.sessionId())));
 
         assertThat(revoked.lastMessage().get("type").asText()).isEqualTo("session.revoked");
         assertThat(revoked.closeStatus()).isEqualTo(CloseStatus.POLICY_VIOLATION.withReason("SESSION_REVOKED"));
@@ -265,7 +267,7 @@ class DisplaySocketHandlerTest {
         int sentBefore = session.sentMessages().size();
 
         handler.afterConnectionClosed(session, CloseStatus.GOING_AWAY);
-        connections.onSessionsRevoked(new DisplaySessionsRevokedEvent(List.of(DISPLAY.sessionId())));
+        connections.onDisplaySessionsRevoked(new DisplaySessionsRevokedEvent(List.of(DISPLAY.sessionId())));
 
         assertThat(session.sentMessages()).hasSize(sentBefore);
     }
@@ -283,8 +285,8 @@ class DisplaySocketHandlerTest {
         send(second, "not json");
 
         List<JsonNode> firstMessages = first.sentMessages();
-        String firstId = firstMessages.get(1).get("payload").get("requestId").asText();
-        assertThat(firstMessages.get(2).get("payload").get("requestId").asText()).isEqualTo(firstId);
+        String firstId = firstMessages.get(2).get("payload").get("requestId").asText();
+        assertThat(firstMessages.get(3).get("payload").get("requestId").asText()).isEqualTo(firstId);
         assertThat(second.lastMessage().get("payload").get("requestId").asText()).isNotEqualTo(firstId);
         assertThat(MDC.get(CorrelationIdFilter.MDC_KEY)).isEqualTo("http-request-id");
     }

@@ -1,6 +1,7 @@
 package com.museotek.box.application.publish;
 
 import com.museotek.box.application.box.BoxStartCards;
+import com.museotek.box.application.box.BoxesNeedSyncEvent;
 import com.museotek.box.application.experience.ExperienceGaps;
 import com.museotek.box.application.experience.ExperienceView;
 import com.museotek.box.application.experience.GetExperienceQuery;
@@ -11,9 +12,11 @@ import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.project.Project;
 import com.museotek.box.domain.publish.PublishedExperience;
 import com.museotek.box.infrastructure.catalogue.CatalogueProjectDto;
+import com.museotek.box.infrastructure.repository.BoxRepository;
 import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.infrastructure.repository.PublishedExperienceRepository;
 import com.museotek.box.infrastructure.security.CurrentPrincipal;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +45,8 @@ public class PublishExperienceUseCase {
     private final BoxStartCards boxStartCards;
     private final PublishedContentMapper contentMapper;
     private final PublishWarnings publishWarnings;
+    private final BoxRepository boxRepository;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public PublishExperienceUseCase(
@@ -54,6 +59,8 @@ public class PublishExperienceUseCase {
             BoxStartCards boxStartCards,
             PublishedContentMapper contentMapper,
             PublishWarnings publishWarnings,
+            BoxRepository boxRepository,
+            ApplicationEventPublisher events,
             Clock clock
     ) {
         this.projectAccessGuard = projectAccessGuard;
@@ -65,6 +72,8 @@ public class PublishExperienceUseCase {
         this.boxStartCards = boxStartCards;
         this.contentMapper = contentMapper;
         this.publishWarnings = publishWarnings;
+        this.boxRepository = boxRepository;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -101,6 +110,10 @@ public class PublishExperienceUseCase {
                 contentMapper.mediaIds(content), contentMapper.cardTypeIds(content),
                 Instant.now(clock), CurrentPrincipal.subject().orElse(null));
         publishedExperienceRepository.save(copy);
+        List<Long> boxIds = boxRepository.findIdsByAssignedProject(projectId);
+        if (!boxIds.isEmpty()) {
+            events.publishEvent(new BoxesNeedSyncEvent(boxIds));
+        }
         return PublishStatus.of(copy, project, publishWarnings.find(orgId));
     }
 }

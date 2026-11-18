@@ -1,4 +1,4 @@
-package com.museotek.box.player.display;
+package com.museotek.box.player.socket;
 
 import com.museotek.box.player.PlayerSocketProperties;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ class LoginLimitsTest {
 
     static PlayerSocketProperties properties(int loginsPerMinute) {
         return new PlayerSocketProperties(List.of("http://localhost:5173"), Duration.ofSeconds(5), loginsPerMinute,
-                Duration.ofMinutes(1));
+                Duration.ofMinutes(1), Duration.ofSeconds(25), Duration.ofSeconds(60));
     }
 
     @Test

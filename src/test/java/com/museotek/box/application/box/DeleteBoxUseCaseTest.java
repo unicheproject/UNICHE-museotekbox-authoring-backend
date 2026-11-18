@@ -60,6 +60,17 @@ class DeleteBoxUseCaseTest {
     }
 
     @Test
+    void aBoxWithAKey_isClosedIfConnected() {
+        UUID orgId = UUID.randomUUID();
+        Box box = box(orgId);
+        box.setKeyHash("hash");
+
+        useCase.execute(orgId, 1L);
+
+        verify(events).publishEvent(new BoxKeyChangedEvent(1L));
+    }
+
+    @Test
     void boxNotFoundForOrg_throwsWithoutDeleting() {
         UUID orgId = UUID.randomUUID();
         when(boxRepository.findByIdAndOrgId(1L, orgId)).thenReturn(Optional.empty());

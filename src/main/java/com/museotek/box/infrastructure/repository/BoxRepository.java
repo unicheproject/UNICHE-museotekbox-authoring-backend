@@ -29,6 +29,25 @@ public interface BoxRepository extends JpaRepository<Box, Long> {
     @Query("select p.id from Box b join b.assignedProjects p where b.id = :boxId")
     List<UUID> findAssignedProjectIds(@Param("boxId") Long boxId);
 
+    @Query("select b.id from Box b join b.assignedProjects p where p.id = :projectId")
+    List<Long> findIdsByAssignedProject(@Param("projectId") UUID projectId);
+
+    // From the Box's socket: connected or not. What it plays is cleared; its state messages set it again.
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Box b set b.status = :status, b.currentProject = null, b.currentSceneKey = null,
+                b.statusAt = :at, b.lastSeenAt = :at
+            where b.id = :boxId
+            """)
+    int setPresence(@Param("boxId") Long boxId, @Param("status") BoxStatus status, @Param("at") Instant at);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Box b set b.status = :offline, b.currentProject = null, b.currentSceneKey = null, b.statusAt = :at
+            where b.status <> :offline
+            """)
+    int markAllOffline(@Param("offline") BoxStatus offline, @Param("at") Instant at);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update Box b set b.lastSeenAt = :now where b.id = :boxId")
     int touchLastSeen(@Param("boxId") Long boxId, @Param("now") Instant now);

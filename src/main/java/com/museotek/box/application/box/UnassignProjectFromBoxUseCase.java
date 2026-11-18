@@ -4,9 +4,11 @@ import com.museotek.box.application.orgaccess.OrgAccessGuard;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.infrastructure.repository.BoxRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -20,10 +22,13 @@ public class UnassignProjectFromBoxUseCase {
 
     private final OrgAccessGuard orgAccessGuard;
     private final BoxRepository boxRepository;
+    private final ApplicationEventPublisher events;
 
-    public UnassignProjectFromBoxUseCase(OrgAccessGuard orgAccessGuard, BoxRepository boxRepository) {
+    public UnassignProjectFromBoxUseCase(OrgAccessGuard orgAccessGuard, BoxRepository boxRepository,
+                                         ApplicationEventPublisher events) {
         this.orgAccessGuard = orgAccessGuard;
         this.boxRepository = boxRepository;
+        this.events = events;
     }
 
     @Transactional
@@ -33,6 +38,8 @@ public class UnassignProjectFromBoxUseCase {
         Box box = boxRepository.findByIdAndOrgId(boxId, orgId)
                 .orElseThrow(() -> new BoxNotFoundException("No box " + boxId + " for org " + orgId));
 
-        box.getAssignedProjects().removeIf(project -> project.getId().equals(projectId));
+        if (box.getAssignedProjects().removeIf(project -> project.getId().equals(projectId))) {
+            events.publishEvent(new BoxesNeedSyncEvent(List.of(boxId)));
+        }
     }
 }
