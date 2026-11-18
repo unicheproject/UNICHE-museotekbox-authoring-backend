@@ -7,8 +7,10 @@ import com.museotek.box.application.secret.SecretTokens;
 import com.museotek.box.domain.box.Box;
 import com.museotek.box.domain.box.BoxStatus;
 import com.museotek.box.domain.display.DisplaySession;
+import com.museotek.box.domain.project.Project;
 import com.museotek.box.infrastructure.repository.BoxRepository;
 import com.museotek.box.infrastructure.repository.DisplaySessionRepository;
+import com.museotek.box.infrastructure.repository.ProjectRepository;
 import com.museotek.box.player.socket.DisplaySocketIntegrationTest.Client;
 import com.museotek.box.support.FakeIdentityProvider;
 import com.museotek.box.support.TestcontainersConfiguration;
@@ -55,6 +57,8 @@ class BoxSocketIntegrationTest {
     private BoxRepository boxRepository;
     @Autowired
     private DisplaySessionRepository sessionRepository;
+    @Autowired
+    private ProjectRepository projectRepository;
     @Autowired
     private ApplicationEventPublisher events;
     @Autowired
@@ -189,6 +193,44 @@ class BoxSocketIntegrationTest {
         assertThat(client.next().get("type").asText()).isEqualTo("session.revoked");
         assertThat(client.closeStatus()).isEqualTo(CloseStatus.POLICY_VIOLATION.withReason("SESSION_REVOKED"));
         assertThat(statusOf(box.id())).isEqualTo(BoxStatus.OFFLINE);
+    }
+
+    @Test
+    void theRelay_stateToTheDisplay_withMediaLinks_reportsToTheBox_andWhatItPlaysIsStored() throws Exception {
+        KeyedBox box = newBox();
+        Project project = new Project();
+        project.setId(UUID.randomUUID());
+        project.setOrgId(UUID.randomUUID());
+        project.setName("Art out of the box");
+        projectRepository.save(project);
+        transactionTemplate.executeWithoutResult(status ->
+                boxRepository.findById(box.id()).orElseThrow().getAssignedProjects().add(project));
+        Client boxClient = box(box);
+        boxClient.next(); // display.presence
+        Client display = connect("/ws/display", "http://localhost:5173");
+        display.send("{\"type\":\"hello\",\"payload\":{\"token\":\"" + newDisplayToken(box.id()) + "\"}}");
+        display.next(); // hello.ok
+        display.next(); // box.presence
+        boxClient.next(); // display.presence: connected
+        UUID video = UUID.randomUUID();
+
+        boxClient.send("{\"v\":1,\"type\":\"state\",\"seq\":2,\"payload\":{\"mode\":\"PLAYING\","
+                + "\"session\":{\"id\":\"s1\",\"projectId\":\"" + project.getId() + "\"},"
+                + "\"scene\":{\"instance\":1,\"sceneKey\":\"4\",\"blocks\":[{\"blockKey\":\"9\",\"type\":\"VIDEO\","
+                + "\"content\":{\"mediaId\":\"" + video + "\"}}]},\"overlay\":null}}");
+
+        JsonNode state = display.next();
+        assertThat(state.get("type").asText()).isEqualTo("state");
+        assertThat(state.get("payload").get("mediaLinks").get(video.toString()).asText())
+                .startsWith("/display/media/" + video + "/content?session=");
+        Box stored = boxRepository.findById(box.id()).orElseThrow();
+        assertThat(stored.getCurrentSceneKey()).isEqualTo("4");
+
+        display.send("{\"type\":\"scene.shown\",\"payload\":{\"sessionId\":\"s1\",\"instance\":1}}");
+
+        JsonNode shown = boxClient.next();
+        assertThat(shown.get("type").asText()).isEqualTo("scene.shown");
+        assertThat(shown.get("payload").get("instance").asInt()).isEqualTo(1);
     }
 
     @Test

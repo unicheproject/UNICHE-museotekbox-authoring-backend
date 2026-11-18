@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.museotek.box.application.box.BoxKeyChangedEvent;
 import com.museotek.box.application.box.BoxesNeedSyncEvent;
 import com.museotek.box.application.player.BoxPresenceUseCase;
+import com.museotek.box.application.player.DisplayMediaLinks;
 import com.museotek.box.application.player.PlayerBoxIdentity;
 import com.museotek.box.application.player.PlayerDisplayView;
 import com.museotek.box.application.player.VerifyBoxKeyUseCase;
@@ -53,7 +54,8 @@ class BoxSocketHandlerTest {
     private final BoxPresenceUseCase presence = mock(BoxPresenceUseCase.class);
     private final PlayerTimer timer = mock(PlayerTimer.class);
     private final ScheduledFuture<?> deadline = mock(ScheduledFuture.class);
-    private final Connections connections = new Connections(presence);
+    private final DisplayMediaLinks mediaLinks = mock(DisplayMediaLinks.class);
+    private final Connections connections = new Connections(presence, mediaLinks);
     private final PlayerSocketProperties properties = LoginLimitsTest.properties(10);
 
     private final BoxSocketHandler boxes;
@@ -197,11 +199,128 @@ class BoxSocketHandlerTest {
     void afterLogin_otherMessages_areRefusedButTheConnectionStays() {
         FakeSession box = box();
 
-        boxes.handleTextMessage(box, new TextMessage("{\"type\":\"state\",\"payload\":{}}"));
-
+        boxes.handleTextMessage(box, new TextMessage("{\"type\":\"scene.shown\",\"payload\":{}}"));
         assertThat(box.lastMessage().get("payload").get("code").asText()).isEqualTo("MESSAGE_NOT_ALLOWED");
+        boxes.handleTextMessage(box, new TextMessage("{\"type\":\"state\",\"payload\":{\"mode\":\"DANCING\"}}"));
+        assertThat(box.lastMessage().get("payload").get("code").asText()).isEqualTo("MALFORMED_MESSAGE");
+        boxes.handleTextMessage(box, new TextMessage("{\"type\":\"state\"}"));
+        assertThat(box.lastMessage().get("payload").get("code").asText()).isEqualTo("MALFORMED_MESSAGE");
+
         assertThat(box.isOpen()).isTrue();
         assertThat(types(box)).startsWith("hello.ok", "display.presence");
+        verify(presence, never()).reportPlaying(any(), any(), any());
+    }
+
+    private static final UUID PROJECT = UUID.randomUUID();
+    private static final UUID VIDEO = UUID.randomUUID();
+    private static final UUID REPLY_PICTURE = UUID.randomUUID();
+
+    private void state(FakeSession box, String mode, int instance) {
+        boxes.handleTextMessage(box, new TextMessage("{\"v\":1,\"type\":\"state\",\"seq\":2,\"payload\":{"
+                + "\"mode\":\"" + mode + "\","
+                + "\"session\":{\"id\":\"s1\",\"projectId\":\"" + PROJECT + "\",\"publishedVersion\":7},"
+                + "\"scene\":{\"instance\":" + instance + ",\"sceneKey\":\"4\",\"blocks\":[{\"blockKey\":\"9\","
+                + "\"type\":\"VIDEO\",\"content\":{\"mediaId\":\"" + VIDEO + "\"}}]},"
+                + "\"overlay\":{\"type\":\"REPLY\",\"mediaId\":\"" + REPLY_PICTURE + "\",\"text\":\"not-a-media-id\"}}}"));
+    }
+
+    @Test
+    void theBoxsState_goesToItsDisplay_asItIs_withASignedLinkPerMedia() {
+        when(mediaLinks.link(DISPLAY.sessionId(), VIDEO)).thenReturn("/display/media/video-link");
+        when(mediaLinks.link(DISPLAY.sessionId(), REPLY_PICTURE)).thenReturn("/display/media/picture-link");
+        FakeSession box = box();
+        FakeSession display = display();
+
+        state(box, "PLAYING", 12);
+
+        JsonNode relayed = display.lastMessage();
+        assertThat(relayed.get("type").asText()).isEqualTo("state");
+        JsonNode payload = relayed.get("payload");
+        assertThat(payload.get("mode").asText()).isEqualTo("PLAYING");
+        assertThat(payload.get("scene").get("instance").asInt()).isEqualTo(12);
+        assertThat(payload.get("scene").get("blocks").get(0).get("content").get("mediaId").asText())
+                .isEqualTo(VIDEO.toString());
+        assertThat(payload.get("mediaLinks").get(VIDEO.toString()).asText()).isEqualTo("/display/media/video-link");
+        assertThat(payload.get("mediaLinks").get(REPLY_PICTURE.toString()).asText())
+                .isEqualTo("/display/media/picture-link");
+        assertThat(payload.get("mediaLinks").size()).isEqualTo(2);
+    }
+
+    @Test
+    void aDisplayThatConnectsLater_getsTheLatestState_atOnce() {
+        FakeSession box = box();
+        state(box, "PLAYING", 12);
+        state(box, "PLAYING", 13);
+
+        FakeSession display = display();
+
+        assertThat(types(display)).containsExactly("hello.ok", "box.presence", "state");
+        assertThat(display.lastMessage().get("payload").get("scene").get("instance").asInt()).isEqualTo(13);
+    }
+
+    @Test
+    void whatTheBoxPlays_isWrittenDown_onlyWhenItChanges() {
+        FakeSession box = box();
+
+        state(box, "PLAYING", 12);
+        state(box, "PLAYING", 12);
+        state(box, "IDLE", 13);
+
+        verify(presence, times(1)).reportPlaying(7L, PROJECT, "4");
+        verify(presence, times(1)).reportPlaying(7L, null, null);
+    }
+
+    @Test
+    void theDisplaysReports_goToTheBox() {
+        FakeSession box = box();
+        FakeSession display = display();
+
+        displays.handleTextMessage(display, new TextMessage(
+                "{\"type\":\"video.ended\",\"payload\":{\"sessionId\":\"s1\",\"instance\":12,\"blockKey\":\"9\"}}"));
+
+        JsonNode relayed = box.lastMessage();
+        assertThat(relayed.get("type").asText()).isEqualTo("video.ended");
+        assertThat(relayed.get("payload").get("sessionId").asText()).isEqualTo("s1");
+        assertThat(relayed.get("payload").get("instance").asInt()).isEqualTo(12);
+        assertThat(relayed.get("payload").get("blockKey").asText()).isEqualTo("9");
+    }
+
+    @Test
+    void aDisplayReport_withoutItsFields_isRefused_andNotPassedOn() {
+        FakeSession box = box();
+        FakeSession display = display();
+        int boxMessages = box.sentMessages().size();
+
+        displays.handleTextMessage(display, new TextMessage(
+                "{\"type\":\"video.ended\",\"payload\":{\"sessionId\":\"s1\",\"instance\":12}}"));
+        displays.handleTextMessage(display, new TextMessage(
+                "{\"type\":\"scene.shown\",\"payload\":{\"sessionId\":\"s1\",\"instance\":\"12\"}}"));
+
+        assertThat(display.lastMessage().get("payload").get("code").asText()).isEqualTo("MALFORMED_MESSAGE");
+        assertThat(box.sentMessages()).hasSize(boxMessages);
+        assertThat(display.isOpen()).isTrue();
+    }
+
+    @Test
+    void aReplacedBoxConnection_cantSpeakForTheBox() {
+        FakeSession old = box();
+        FakeSession display = display();
+        box();
+        int displayMessages = display.sentMessages().size();
+
+        state(old, "PLAYING", 99);
+
+        assertThat(display.sentMessages()).hasSize(displayMessages);
+    }
+
+    @Test
+    void aReplacedKey_forgetsTheBoxsState() {
+        FakeSession box = box();
+        state(box, "PLAYING", 12);
+
+        connections.onBoxKeyChanged(new BoxKeyChangedEvent(7L));
+
+        assertThat(types(display())).containsExactly("hello.ok", "box.presence");
     }
 
     @Test

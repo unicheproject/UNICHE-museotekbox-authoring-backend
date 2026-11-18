@@ -41,6 +41,11 @@ public interface BoxRepository extends JpaRepository<Box, Long> {
             """)
     int setPresence(@Param("boxId") Long boxId, @Param("status") BoxStatus status, @Param("at") Instant at);
 
+    // From the Box's state messages: what it is playing now (null and null when idle).
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Box b set b.currentProject = :project, b.currentSceneKey = :sceneKey where b.id = :boxId")
+    int setPlaying(@Param("boxId") Long boxId, @Param("project") Project project, @Param("sceneKey") String sceneKey);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             update Box b set b.status = :offline, b.currentProject = null, b.currentSceneKey = null, b.statusAt = :at

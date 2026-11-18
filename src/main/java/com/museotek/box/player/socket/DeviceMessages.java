@@ -20,6 +20,10 @@ final class DeviceMessages {
     static final String DISPLAY_PRESENCE = "display.presence";
     static final String SYNC_REQUIRED = "sync.required";
     static final String IDLE_CHANGED = "idle.changed";
+    static final String STATE = "state";
+    static final String SCENE_SHOWN = "scene.shown";
+    static final String VIDEO_ENDED = "video.ended";
+    static final String MEDIA_FAILED = "media.failed";
 
     record Envelope(int v, String type, long seq, Instant sentAt, Object payload) {
     }

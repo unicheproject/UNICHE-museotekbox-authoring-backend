@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.museotek.box.application.display.DisplaySessionsRevokedEvent;
 import com.museotek.box.application.player.BoxPresenceUseCase;
+import com.museotek.box.application.player.DisplayMediaLinks;
 import com.museotek.box.application.player.PlayerDisplayView;
 import com.museotek.box.application.player.VerifyDisplayTokenUseCase;
 import com.museotek.box.domain.display.InvalidDisplayTokenException;
@@ -49,7 +50,7 @@ class DisplaySocketHandlerTest {
     private final PlayerTimer timer = mock(PlayerTimer.class);
     private final ScheduledFuture<?> deadline = mock(ScheduledFuture.class);
     private final BoxPresenceUseCase presence = mock(BoxPresenceUseCase.class);
-    private final Connections connections = new Connections(presence);
+    private final Connections connections = new Connections(presence, mock(DisplayMediaLinks.class));
 
     private DisplaySocketHandler handler = handler(LoginLimitsTest.properties(10));
 
@@ -124,7 +125,7 @@ class DisplaySocketHandlerTest {
         FakeSession session = open();
         hello(session, "the-token");
 
-        send(session, "{\"type\":\"video.ended\",\"payload\":{}}");
+        send(session, "{\"type\":\"state\",\"payload\":{\"mode\":\"IDLE\"}}");
         assertError(session.lastMessage(), "MESSAGE_NOT_ALLOWED");
         send(session, "not json");
         assertError(session.lastMessage(), "MALFORMED_MESSAGE");

@@ -71,10 +71,8 @@ abstract class DeviceSocketHandler<T> extends TextWebSocketHandler {
     /** A logged-in connection closed. */
     abstract void closed(DeviceConnection<T> connection);
 
-    /** A message after login. Until the relay, nothing is accepted. */
-    void handleLoggedIn(DeviceConnection<T> connection, String type, JsonNode message) {
-        connection.sendError("MESSAGE_NOT_ALLOWED", "This message type is not accepted here");
-    }
+    /** A message after login, with a text {@code type}. The connection stays open whatever it is. */
+    abstract void handleLoggedIn(DeviceConnection<T> connection, String type, JsonNode message);
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {

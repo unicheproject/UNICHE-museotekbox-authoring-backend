@@ -1,5 +1,6 @@
 package com.museotek.box.player.socket;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.museotek.box.application.player.PlayerBoxIdentity;
 import com.museotek.box.application.player.VerifyBoxKeyUseCase;
@@ -13,8 +14,9 @@ import java.util.Map;
 
 /**
  * The Box's websocket ({@code /ws/box}): {@code hello} with {@code payload.key}, its Box key from the CMS. While it is
- * connected the Box is online. It hears when to sync ({@code sync.required}) and whether its display is there
- * ({@code display.presence}).
+ * connected the Box is online. It sends its {@code state} snapshots, and hears when to sync ({@code sync.required}),
+ * whether its display is there ({@code display.presence}) and what the display reports ({@code scene.shown},
+ * {@code video.ended}, {@code media.failed}).
  */
 @Component
 public class BoxSocketHandler extends DeviceSocketHandler<PlayerBoxIdentity> {
@@ -62,5 +64,20 @@ public class BoxSocketHandler extends DeviceSocketHandler<PlayerBoxIdentity> {
     @Override
     void closed(DeviceConnection<PlayerBoxIdentity> connection) {
         connections.removeBox(connection);
+    }
+
+    @Override
+    void handleLoggedIn(DeviceConnection<PlayerBoxIdentity> connection, String type, JsonNode message) {
+        if (!DeviceMessages.STATE.equals(type)) {
+            connection.sendError("MESSAGE_NOT_ALLOWED", "A box sends only state");
+            return;
+        }
+        JsonNode state = message.get("payload");
+        if (!BoxState.isValid(state)) {
+            connection.sendError("MALFORMED_MESSAGE", "state needs a 'payload' object with a 'mode' of "
+                    + String.join(", ", BoxState.MODES.stream().sorted().toList()));
+            return;
+        }
+        connections.relayState(connection, state);
     }
 }

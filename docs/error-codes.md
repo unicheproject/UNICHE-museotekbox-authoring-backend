@@ -127,9 +127,13 @@ code 1008 and the error code as reason: don't reconnect after a 1008.
 - `TOO_MANY_RECONNECTS`: this display or Box logged in too often within a minute; try again in a minute. Closes.
 - `LOGIN_TIMEOUT`: no `hello` within 5 seconds of connecting. Closes.
 - `MALFORMED_MESSAGE`: not a JSON object with a text `type`, or `hello` without a text `payload.token` (display) or
-  `payload.key` (Box), or a far too long one. Closes before login.
-- `MESSAGE_NOT_ALLOWED`: a message type that isn't accepted at this point (before login: anything but `hello`).
-  Closes before login.
+  `payload.key` (Box), or a far too long one. Closes before login. After login: a Box `state` without a `payload`
+  object whose `mode` is `IDLE`, `PLAYING` or `PLAYING_ON_BOX`, or a display report without a text `sessionId`, a
+  whole-number `instance` and (for `video.ended`, `media.failed`) a text `blockKey`; the message is dropped and the
+  connection stays open.
+- `MESSAGE_NOT_ALLOWED`: a message type that isn't accepted at this point. Before login: anything but `hello`, and it
+  closes. After login a Box sends only `state`, and a display only `scene.shown`, `video.ended` and `media.failed`;
+  the connection stays open.
 - `INTERNAL_ERROR`: an unexpected error in the backend. Closes (code 1011) before login.
 
 Not errors, but the tool also ends a connection with these messages, closing with 1008 and the reason shown:
@@ -141,7 +145,7 @@ Not errors, but the tool also ends a connection with these messages, closing wit
 The tool pings every connection every 25 seconds (a websocket ping, which browsers and websocket libraries answer by
 themselves) and closes one that hasn't answered for 60 seconds, with code 4500. Reconnect after that.
 
-A message over 8192 characters closes the connection with code 1009.
+A message over 65536 characters closes the connection with code 1009.
 
 ## UNICHE Catalogue
 

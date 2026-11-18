@@ -1,9 +1,11 @@
 package com.museotek.box.player.socket;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.museotek.box.application.box.BoxKeyChangedEvent;
 import com.museotek.box.application.box.BoxesNeedSyncEvent;
 import com.museotek.box.application.display.DisplaySessionsRevokedEvent;
 import com.museotek.box.application.player.BoxPresenceUseCase;
+import com.museotek.box.application.player.DisplayMediaLinks;
 import com.museotek.box.application.player.PlayerBoxIdentity;
 import com.museotek.box.application.player.PlayerDisplayView;
 import org.slf4j.Logger;
@@ -22,7 +24,10 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Who is connected for each Box: at most one Box connection and one display connection. A newer connection replaces
  * the older one (the newest wins). Keeps the two sides told about each other ({@code box.presence},
- * {@code display.presence}) and the Box's online status in the database. In memory: only one copy of the app runs.
+ * {@code display.presence}) and the Box's online status in the database, and relays between them: the Box's latest
+ * {@code state} to its display (kept, so a display that connects later gets it at once), and the display's
+ * {@code scene.shown}, {@code video.ended} and {@code media.failed} to the Box. In memory: only one copy of the app
+ * runs.
  */
 @Component
 class Connections {
@@ -31,10 +36,14 @@ class Connections {
 
     private final Map<Long, DeviceConnection<PlayerDisplayView>> displays = new ConcurrentHashMap<>();
     private final Map<Long, DeviceConnection<PlayerBoxIdentity>> boxes = new ConcurrentHashMap<>();
+    // The latest state of each Box. Kept when the Box drops, so a reloading display still shows the last picture.
+    private final Map<Long, JsonNode> states = new ConcurrentHashMap<>();
     private final BoxPresenceUseCase presence;
+    private final DisplayMediaLinks mediaLinks;
 
-    Connections(BoxPresenceUseCase presence) {
+    Connections(BoxPresenceUseCase presence, DisplayMediaLinks mediaLinks) {
         this.presence = presence;
+        this.mediaLinks = mediaLinks;
     }
 
     void addDisplay(DeviceConnection<PlayerDisplayView> connection) {
@@ -47,6 +56,10 @@ class Connections {
             });
         }
         connection.send(DeviceMessages.BOX_PRESENCE, DeviceMessages.boxPresence(boxes.containsKey(boxId)));
+        JsonNode state = states.get(boxId);
+        if (state != null) {
+            connection.send(DeviceMessages.STATE, BoxState.forDisplay(state, connection.device().sessionId(), mediaLinks));
+        }
         sendToBox(boxId, DeviceMessages.DISPLAY_PRESENCE, DeviceMessages.displayPresence(true));
     }
 
@@ -81,6 +94,31 @@ class Connections {
         }
     }
 
+    /** The Box's new snapshot: kept, passed on to its display, and what it plays written down when that changed. */
+    void relayState(DeviceConnection<PlayerBoxIdentity> connection, JsonNode state) {
+        Long boxId = connection.device().boxId();
+        if (boxes.get(boxId) != connection) {
+            return; // A replaced connection that hasn't closed yet: the newer one speaks for the Box.
+        }
+        BoxState.Playing before = BoxState.playing(states.put(boxId, state));
+        BoxState.Playing now = BoxState.playing(state);
+        if (!now.equals(before)) {
+            presence.reportPlaying(boxId, now.projectId(), now.sceneKey());
+        }
+        DeviceConnection<PlayerDisplayView> display = displays.get(boxId);
+        if (display != null) {
+            display.send(DeviceMessages.STATE, BoxState.forDisplay(state, display.device().sessionId(), mediaLinks));
+        }
+    }
+
+    /** A display's message for its Box. Dropped when the Box isn't connected: it resends its state when it is. */
+    void relayToBox(DeviceConnection<PlayerDisplayView> connection, String type, JsonNode payload) {
+        Long boxId = connection.device().boxId();
+        if (displays.get(boxId) == connection) {
+            sendToBox(boxId, type, payload);
+        }
+    }
+
     // After the commit only: a revoke that rolls back must not close anything.
     @TransactionalEventListener
     public void onDisplaySessionsRevoked(DisplaySessionsRevokedEvent event) {
@@ -99,6 +137,7 @@ class Connections {
     @TransactionalEventListener
     public void onBoxKeyChanged(BoxKeyChangedEvent event) {
         DeviceConnection<PlayerBoxIdentity> connection = boxes.get(event.boxId());
+        states.remove(event.boxId());
         if (connection == null) {
             return;
         }

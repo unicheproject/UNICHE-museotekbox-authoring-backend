@@ -220,7 +220,7 @@ class DisplaySocketIntegrationTest {
     void aMessageOverTheSizeLimit_closesTheConnection() throws Exception {
         Client client = connect(ALLOWED_ORIGIN);
 
-        client.hello("x".repeat(9000));
+        client.hello("x".repeat(70_000));
 
         assertThat(client.closeStatus().getCode()).isEqualTo(CloseStatus.TOO_BIG_TO_PROCESS.getCode());
     }
