@@ -52,17 +52,4 @@ public interface BoxRepository extends JpaRepository<Box, Long> {
             where b.status <> :offline
             """)
     int markAllOffline(@Param("offline") BoxStatus offline, @Param("at") Instant at);
-
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("update Box b set b.lastSeenAt = :now where b.id = :boxId")
-    int touchLastSeen(@Param("boxId") Long boxId, @Param("now") Instant now);
-
-    // One conditional update, so two reports arriving together can't both win: only a newer "at" applies.
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("""
-            update Box b set b.status = :status, b.currentProject = :project, b.currentSceneKey = :sceneKey, b.statusAt = :at
-            where b.id = :boxId and (b.statusAt is null or b.statusAt < :at)
-            """)
-    int applyStatusIfNewer(@Param("boxId") Long boxId, @Param("status") BoxStatus status, @Param("project") Project project,
-                           @Param("sceneKey") String sceneKey, @Param("at") Instant at);
 }

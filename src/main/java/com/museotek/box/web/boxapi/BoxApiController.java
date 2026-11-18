@@ -5,7 +5,6 @@ import com.museotek.box.application.player.GetBoxForPlayerQuery;
 import com.museotek.box.application.player.GetExperienceForPlayerQuery;
 import com.museotek.box.application.player.GetMediaOnBoxQuery;
 import com.museotek.box.application.player.PlayerBoxIdentity;
-import com.museotek.box.web.player.PlayerExperienceResponse;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
@@ -48,9 +47,9 @@ public class BoxApiController {
 
     // 404 EXPERIENCE_NOT_PUBLISHED for an experience that isn't (or is no longer) on this Box.
     @GetMapping("/experiences/{projectId}")
-    public PlayerExperienceResponse experience(@AuthenticationPrincipal PlayerBoxIdentity box,
+    public BoxExperienceResponse experience(@AuthenticationPrincipal PlayerBoxIdentity box,
                                                @PathVariable UUID projectId) {
-        return PlayerExperienceResponse.from(experienceQuery.execute(box.boxId(), projectId));
+        return BoxExperienceResponse.from(experienceQuery.execute(box.boxId(), projectId));
     }
 
     // 404 MEDIA_NOT_FOUND for media no experience on this Box uses. Range support from the Resource body, and

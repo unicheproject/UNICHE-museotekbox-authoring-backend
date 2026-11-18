@@ -3,9 +3,10 @@ Based on mobics-guidelines (no tag yet, commit 1854078)
 # MuseotekBox Tool Backend: Project Source of Truth
 
 The backend of MuseotekBox, an RFID museum experience platform on UNICHE: curators build experiences (scenes,
-blocks, rules) in the authoring side, and the player package runs them for museum Boxes and screens. If the code, the chat history or other documents disagree with this file, fix
+blocks, rules) in the authoring side; Boxes download and run them, and the player package connects each Box with its
+display. If the code, the chat history or other documents disagree with this file, fix
 the disagreement here first (or ask), then change the code. A CLAUDE.md in a sub-folder adds rules for that folder and
-must not contradict this file. Status as of 2026-11-11: development; the player package is being built.
+must not contradict this file. Status as of 2026-11-18: development; the device protocol (Box, display) is built.
 
 ## 1. Identity
 - Stack: Java 21, Spring Boot 3.4.7, Maven (wrapper pinned), PostgreSQL 16 (Docker image `postgres:16.6-bookworm`)
@@ -14,9 +15,9 @@ must not contradict this file. Status as of 2026-11-11: development; the player 
 - Frontend repo: `UNICHE-museotekbox-authoring-frontend` (Vue)
 - UI language: Greek and English (the frontend's). Code, identifiers, commits, DB names and API error messages are English.
 - Auth: OAuth2 resource server (Keycloak JWT) for curators. Organisations, projects and permissions belong to Catalogue
-  and are checked live through it; this backend keeps only its own data plus companion rows. Devices (screens, Boxes)
+  and are checked live through it; this backend keeps only its own data plus companion rows. Devices (Boxes, displays)
   never use Keycloak: see section 6, "Devices".
-- How the Box, the screen and the tool talk: `docs/communication.md` (living).
+- How the Box, its display and the tool talk: `docs/communication.md` (living).
 
 ## 2. Who does what
 - **The assistant** writes code and tests, runs the tests, does the review in section 3 and drafts the commit message.
@@ -78,8 +79,8 @@ token needed).
   It is sent in the websocket's first message (`hello`), never in a URL.
 - A Box logs in with its Box key: made by a manager in the CMS, shown once, stored as a SHA-256 fingerprint only,
   one per Box (a new key replaces the old at once), removable. Sent as a Bearer token on `/box/**` and in the `hello` of `/ws/box`; it decides the
-  Box, so a Box only reads its own experiences and media. The serial number is no credential there, but is still
-  treated as a secret (never in URLs, logs or responses) until `/player/v1` is removed.
+  Box, so a Box only reads its own experiences and media. The serial number is only a label (unique per Box), never a
+  login.
 - A display token proves its Box: the display only ever sees that Box. Checked in the use cases, with tests.
 - One display per Box is connected at a time; the newest wins. No limit on wrong tokens (256 random bits); more
   than 10 logins/min of one display → blocked 1 min, never per IP (a museum shares one). Numbers are settings.
@@ -96,8 +97,8 @@ Export and erase: `scripts/gdpr/` (update it when a column like these is added).
 No personal data in logs, URLs or error messages; no production data in development or tests. Say so whenever a change
 adds personal data or a new purpose. This is engineering practice, not legal advice.
 
-**Triggers for a security review:** authentication, roles and access guards, device login (display tokens, Box keys,
-serials), websocket message handling, rate limits, input validation, file handling (media
+**Triggers for a security review:** authentication, roles and access guards, device login (display tokens, Box keys),
+websocket message handling, rate limits, input validation, file handling (media
 uploads), queries, secrets or configuration, logging, personal data, dependencies or the build, the API contract. Then
 go through: every endpoint authenticated unless explicitly public; every role rule covered by a test; error responses
 leak nothing (no SQL, stack traces, exception messages, rejected values); logs free of secrets and personal data;
@@ -162,7 +163,7 @@ disagree, this file wins and the document is fixed.
 - `README.md` (living): what the system is, Catalogue integration, package structure, adding a feature
 - `docs/architecture-and-classes.md`, `docs/security-and-errors.md`, `docs/dependencies-and-config.md` (snapshot)
 - `docs/error-codes.md` (living): every error `code`, its status and when it happens. Update it with each new code
-- `docs/communication.md` (living): how the Box, the screen and the tool talk; update it with each socket change
+- `docs/communication.md` (living): how the Box, its display and the tool talk; update it with each socket change
 - `docs/experience-api-flow.md`, `docs/frontend-*.md` (snapshot): what the frontend needs to know
 - `docs/proposal-*.md` (snapshot): why a feature was built the way it was
 
@@ -178,15 +179,17 @@ disagree, this file wins and the document is fixed.
   `content` is its own format for Boxes (`PublishedContent`, `contentSchemaVersion`), not the CMS response. Assigning
   (`PUT /boxes/{boxId}/projects/{projectId}`) only chooses the Boxes. Why: curators keep editing while Boxes play a
   checked version (see `docs/proposal-device-api.md`).
-- 2026-11-04/05 BOX experiences run on the Box (offline-capable), DISPLAY ones in the player, by the `output` field.
-  Universal and Exit are card-type flags. Why: museums lose internet; a Box-only experience must still work.
-- 2026-11-05 Screens use a setup code traded for a per-screen key, never a staff login. Why: no typing on site; the
-  code is safe to carry (single use), the key never leaves the device.
+- 2026-11-16 The Box stores all its experiences and runs every rule, for BOX and DISPLAY experiences alike; the tool
+  only relays (Box `state` snapshots to the display, the display's reports to the Box) and keeps the latest snapshot.
+  Why: one place decides, so a slow or missing display can't put the two out of step, and Boxes keep playing offline.
+  Replaces the 2026-11-04 split (DISPLAY experiences run by the tool) and the screen setup codes of 2026-11-05.
+- 2026-11-16 A display is opened from the CMS by a manager ("Open display") and gets a token tied to one Box; a Box
+  logs in with a key made in the CMS. No pairing codes, no shared secret; `/player/v1` is gone (2026-11-18). Why: no
+  typing on site, and each device can reach only its own Box.
 - 2026-11-11 The player is a package in this backend (`com.museotek.box.player`) guarded by ArchUnit, not a separate
-  app; the `/player/v1` REST API and its shared secret go once the websockets replace them. Why: few museums, one
-  deploy, no copies; the boundary keeps a later split possible. Accepted: authoring and visits share one process.
-- 2026-11-11 Box locks in memory, no leases; rate limits as in section 6; visit reports deferred until someone asks
-  for statistics. Why: a restart ends visits anyway; nothing uses visit reports yet.
+  app. Why: few museums, one deploy, no copies; the boundary keeps a later split possible.
+- 2026-11-18 Connections and snapshots live in memory, one Box and one display connection per Box (newest wins);
+  visit reports deferred until someone asks for statistics. Why: a restart only means the devices reconnect.
 
 **Kept as is from the guidelines audit (2026-10-23, do not "fix" in passing):**
 - Error body stays `ErrorEnvelope`, not RFC 9457 problem details. Why: the format changes together with the frontend
@@ -213,8 +216,8 @@ disagree, this file wins and the document is fixed.
   coordinated across UNICHE tools, and should comment bodies be kept once the author is anonymised?
 - Static analysis is not configured. Secret detection runs in CI (gitleaks, `secrets` job in `ci.yml`).
 - Should platform admins be able to edit or delete global templates?
-- Player package: see `docs/communication.md` "Still open" (pairing a screen with its Box in the tool, media cookie,
-  Box capabilities and factory secret, runtime rule order needing the frontend developer's yes).
+- Device protocol: see `docs/communication.md` "Still open" (how a key gets onto a Box, a display gone during a
+  video, card edits not yet sending `sync.required`).
 
 ## 13. Known gotchas (verified in code, dated)
 - 2026-10-14 `@DataJpaTest` needs `@ActiveProfiles("test")`, otherwise it does not pick up the Testcontainers setup.

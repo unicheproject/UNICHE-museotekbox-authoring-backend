@@ -5,7 +5,6 @@ import com.museotek.box.application.player.VerifyDisplayTokenUseCase;
 import com.museotek.box.domain.box.InvalidBoxKeyException;
 import com.museotek.box.domain.display.InvalidDisplayTokenException;
 import com.museotek.box.web.error.SecurityErrorHandler;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -17,46 +16,22 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
 import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
- * Security for the player's paths, ordered before {@link SecurityConfig}, which keeps every other path.
- * {@code /display/**} is the display page's REST API: its display token, never a user login. {@code /box/**} is the
- * Box's REST API: its Box key.
- * {@code /player/v1/**} is used only by the old player project: the shared secret, no Keycloak, no CORS (the caller
- * is a server, not a browser); curator tokens are refused there, and the secret is refused everywhere else.
+ * Security for the devices' paths, ordered before {@link SecurityConfig}, which keeps every other path (the CMS, with
+ * Keycloak). {@code /ws/**} are the display's and the Box's websockets, {@code /display/**} the display page's REST
+ * API (its display token, never a user login), {@code /box/**} the Box's REST API (its Box key). A user's login token
+ * means nothing on these paths, and a device's token nothing on the CMS's.
  */
 @Configuration
 public class PlayerSecurityConfig {
 
-    @Bean
-    public PlayerSecrets playerSecrets(@Value("${museotek.player.secrets}") String secrets) {
-        return new PlayerSecrets(secrets);
-    }
-
-    @Bean
-    @Order(1)
-    public SecurityFilterChain playerFilterChain(HttpSecurity http, PlayerSecrets secrets,
-                                                 SecurityErrorHandler errorHandler) throws Exception {
-        http
-                .securityMatcher("/player/v1/**")
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(AbstractHttpConfigurer::disable)
-                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().hasRole(PlayerSecretFilter.ROLE))
-                .exceptionHandling(e -> e
-                        .authenticationEntryPoint(errorHandler)
-                        .accessDeniedHandler(errorHandler)
-                )
-                .addFilterBefore(new PlayerSecretFilter(secrets), AnonymousAuthenticationFilter.class);
-        return http.build();
-    }
-
     /**
      * The player's websockets ({@code /ws/**}). The handshake is open: browsers can't send a login header on it, so
-     * each connection logs in with its first message ({@code hello} with a display token), checked by the player
-     * package. The allowed Origins are checked by the websocket handshake itself
+     * each connection logs in with its first message ({@code hello} with a display token or a Box key), checked by
+     * the player package. The display's allowed Origins are checked by the websocket handshake itself
      * ({@code museotek.player.socket.allowed-origins}); curator tokens mean nothing here.
      */
     @Bean
-    @Order(2)
+    @Order(1)
     public SecurityFilterChain playerSocketFilterChain(HttpSecurity http) throws Exception {
         http
                 .securityMatcher("/ws/**")
@@ -74,7 +49,7 @@ public class PlayerSecurityConfig {
      * checked by the media query; the chain lets them through.
      */
     @Bean
-    @Order(3)
+    @Order(2)
     public SecurityFilterChain displayFilterChain(HttpSecurity http, VerifyDisplayTokenUseCase verifyUseCase,
                                                   CorsConfigurationSource corsConfigurationSource,
                                                   SecurityErrorHandler errorHandler) throws Exception {
@@ -101,7 +76,7 @@ public class PlayerSecurityConfig {
      * ({@link DeviceTokenFilter}). No CORS: the Box is a device, not a browser page.
      */
     @Bean
-    @Order(4)
+    @Order(3)
     public SecurityFilterChain boxFilterChain(HttpSecurity http, VerifyBoxKeyUseCase verifyUseCase,
                                               SecurityErrorHandler errorHandler) throws Exception {
         http

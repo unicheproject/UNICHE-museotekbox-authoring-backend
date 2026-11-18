@@ -17,15 +17,15 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// The status report columns (changeset 0032) and their update queries, against real Postgres + Liquibase.
+// The Box's status columns as its socket and state messages set them, against real Postgres + Liquibase.
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
 class BoxRepositoryTest {
 
-    private static final Instant T1 = Instant.parse("2026-11-10T10:00:00Z");
-    private static final Instant T2 = Instant.parse("2026-11-10T10:00:05Z");
+    private static final Instant T1 = Instant.parse("2026-11-18T10:00:00Z");
+    private static final Instant T2 = Instant.parse("2026-11-18T10:00:05Z");
 
     @Autowired
     private TestEntityManager em;
@@ -35,44 +35,63 @@ class BoxRepositoryTest {
     private final UUID orgId = UUID.randomUUID();
 
     @Test
-    void aNewerReport_applies_andAnOlderOneDoesNot() {
-        Project project = project();
+    void setPresence_setsTheStatusAndTime_andClearsWhatItPlays() {
         Long boxId = box().getId();
+        Project project = project();
+        boxRepository.setPlaying(boxId, project, "track-3");
 
-        assertThat(boxRepository.applyStatusIfNewer(boxId, BoxStatus.ONLINE, project, "track-3", T2)).isEqualTo(1);
-        assertThat(boxRepository.applyStatusIfNewer(boxId, BoxStatus.OFFLINE, null, null, T1)).isZero();
-        assertThat(boxRepository.applyStatusIfNewer(boxId, BoxStatus.OFFLINE, null, null, T2)).isZero();
+        assertThat(boxRepository.setPresence(boxId, BoxStatus.ONLINE, T1)).isEqualTo(1);
 
         Box box = em.find(Box.class, boxId);
         assertThat(box.getStatus()).isEqualTo(BoxStatus.ONLINE);
-        assertThat(box.getCurrentProject().getId()).isEqualTo(project.getId());
-        assertThat(box.getCurrentSceneKey()).isEqualTo("track-3");
-        assertThat(box.getStatusAt()).isEqualTo(T2);
-    }
-
-    @Test
-    void anIdleReport_clearsTheRunningExperience() {
-        Project project = project();
-        Long boxId = box().getId();
-        boxRepository.applyStatusIfNewer(boxId, BoxStatus.ONLINE, project, "track-3", T1);
-
-        boxRepository.applyStatusIfNewer(boxId, BoxStatus.ONLINE, null, null, T2);
-
-        Box box = em.find(Box.class, boxId);
+        assertThat(box.getStatusAt()).isEqualTo(T1);
+        assertThat(box.getLastSeenAt()).isEqualTo(T1);
         assertThat(box.getCurrentProject()).isNull();
         assertThat(box.getCurrentSceneKey()).isNull();
     }
 
     @Test
-    void touchLastSeen_setsOnlyLastSeen() {
+    void setPlaying_setsOnlyWhatItPlays() {
         Long boxId = box().getId();
+        boxRepository.setPresence(boxId, BoxStatus.ONLINE, T1);
+        Project project = project();
 
-        boxRepository.touchLastSeen(boxId, T1);
+        boxRepository.setPlaying(boxId, project, "track-3");
 
         Box box = em.find(Box.class, boxId);
-        assertThat(box.getLastSeenAt()).isEqualTo(T1);
-        assertThat(box.getStatusAt()).isNull();
-        assertThat(box.getStatus()).isEqualTo(BoxStatus.OFFLINE);
+        assertThat(box.getCurrentProject().getId()).isEqualTo(project.getId());
+        assertThat(box.getCurrentSceneKey()).isEqualTo("track-3");
+        assertThat(box.getStatus()).isEqualTo(BoxStatus.ONLINE);
+        assertThat(box.getStatusAt()).isEqualTo(T1);
+    }
+
+    @Test
+    void markAllOffline_touchesOnlyBoxesThatAreNotOfflineYet() {
+        Long online = box().getId();
+        Long offline = box().getId();
+        boxRepository.setPresence(online, BoxStatus.ONLINE, T1);
+        boxRepository.setPresence(offline, BoxStatus.OFFLINE, T1);
+
+        int changed = boxRepository.markAllOffline(BoxStatus.OFFLINE, T2);
+
+        assertThat(changed).isGreaterThanOrEqualTo(1);
+        assertThat(em.find(Box.class, online).getStatus()).isEqualTo(BoxStatus.OFFLINE);
+        assertThat(em.find(Box.class, online).getStatusAt()).isEqualTo(T2);
+        assertThat(em.find(Box.class, offline).getStatusAt()).isEqualTo(T1);
+    }
+
+    @Test
+    void findIdsByAssignedProject_findsTheBoxesThatHaveIt() {
+        Project project = project();
+        Box hallA = box();
+        Box hallB = box();
+        box();
+        hallA.getAssignedProjects().add(project);
+        hallB.getAssignedProjects().add(project);
+        em.flush();
+
+        assertThat(boxRepository.findIdsByAssignedProject(project.getId()))
+                .containsExactlyInAnyOrder(hallA.getId(), hallB.getId());
     }
 
     private Project project() {
@@ -80,7 +99,9 @@ class BoxRepositoryTest {
         project.setId(UUID.randomUUID());
         project.setOrgId(orgId);
         project.setName("Quiz");
-        return em.persist(project);
+        Project saved = em.persist(project);
+        em.flush();
+        return saved;
     }
 
     private Box box() {

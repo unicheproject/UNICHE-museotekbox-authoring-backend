@@ -1,4 +1,4 @@
-package com.museotek.box.web.player;
+package com.museotek.box.web.boxapi;
 
 import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.museotek.box.application.player.PlayerExperienceCopy;
@@ -9,15 +9,15 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * One experience's latest copy, for the player project and for Boxes. {@code content} is the stored PublishedContent
+ * One experience's latest copy, as a Box downloads it. {@code content} is the stored PublishedContent
  * JSON, passed through as JSON rather than as a string.
  */
-public record PlayerExperienceResponse(UUID projectId, String name, int version, ExperienceOutput output,
+public record BoxExperienceResponse(UUID projectId, String name, int version, ExperienceOutput output,
                                        Long startCardTypeId, Instant publishedAt, @JsonRawValue String content,
                                        List<PlayerExperienceCopy.MediaFile> media) {
 
-    public static PlayerExperienceResponse from(PlayerExperienceCopy copy) {
-        return new PlayerExperienceResponse(
+    public static BoxExperienceResponse from(PlayerExperienceCopy copy) {
+        return new BoxExperienceResponse(
                 copy.experience().projectId(),
                 copy.experience().name(),
                 copy.experience().version(),
