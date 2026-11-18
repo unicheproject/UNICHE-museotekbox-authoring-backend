@@ -1,0 +1,20 @@
+# Secrets and local config: never part of an image
+.env
+.env.*
+!.env.example
+mise.local.toml
+docker-compose.override.yml
+
+# Build output and runtime data
+target/
+uploads/
+
+# Not needed to build
+.git/
+.github/
+.claude/
+.idea/
+*.iml
+.vscode/
+docs/
+scripts/
