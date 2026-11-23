@@ -1,6 +1,7 @@
 package com.museotek.box.application.scanobjecttype;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.application.scanobject.CardsChangedEvent;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
@@ -9,6 +10,7 @@ import com.museotek.box.infrastructure.repository.RuleRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
 import com.museotek.box.infrastructure.repository.SceneRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -22,6 +24,7 @@ public class DeleteScanObjectTypeUseCase {
     private final SceneRepository sceneRepository;
     private final RuleRepository ruleRepository;
     private final PublishedExperienceRepository publishedExperienceRepository;
+    private final ApplicationEventPublisher events;
 
     public DeleteScanObjectTypeUseCase(
             OrgAccessGuard orgAccessGuard,
@@ -29,7 +32,8 @@ public class DeleteScanObjectTypeUseCase {
             ScanObjectRepository scanObjectRepository,
             SceneRepository sceneRepository,
             RuleRepository ruleRepository,
-            PublishedExperienceRepository publishedExperienceRepository
+            PublishedExperienceRepository publishedExperienceRepository,
+            ApplicationEventPublisher events
     ) {
         this.orgAccessGuard = orgAccessGuard;
         this.scanObjectTypeRepository = scanObjectTypeRepository;
@@ -37,6 +41,7 @@ public class DeleteScanObjectTypeUseCase {
         this.sceneRepository = sceneRepository;
         this.ruleRepository = ruleRepository;
         this.publishedExperienceRepository = publishedExperienceRepository;
+        this.events = events;
     }
 
     public void execute(UUID orgId, Long id) {
@@ -58,5 +63,6 @@ public class DeleteScanObjectTypeUseCase {
         }
 
         scanObjectTypeRepository.delete(type);
+        events.publishEvent(new CardsChangedEvent(orgId));
     }
 }

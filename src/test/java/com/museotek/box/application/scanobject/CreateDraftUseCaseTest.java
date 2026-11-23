@@ -10,6 +10,7 @@ import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -29,7 +30,8 @@ class CreateDraftUseCaseTest {
     private final ScanObjectRepository scanObjectRepository = mock(ScanObjectRepository.class);
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final ScanObjectSupport scanObjectSupport = new ScanObjectSupport(scanObjectRepository, scanObjectTypeRepository);
-    private final CreateDraftUseCase useCase = new CreateDraftUseCase(orgAccessGuard, scanObjectSupport, scanObjectRepository);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final CreateDraftUseCase useCase = new CreateDraftUseCase(orgAccessGuard, scanObjectSupport, scanObjectRepository, events);
 
     @Test
     void success_savesDraftScopedToOrgWithNoRfidTag() {
@@ -37,6 +39,7 @@ class CreateDraftUseCaseTest {
         when(scanObjectRepository.save(any(Draft.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Draft result = useCase.execute(orgId, "Muse Draft", null, false, null);
+        verify(events).publishEvent(new CardsChangedEvent(orgId));
 
         verify(orgAccessGuard).requireAccess(orgId);
         verifyNoInteractions(scanObjectTypeRepository);
@@ -73,6 +76,7 @@ class CreateDraftUseCaseTest {
                 .isInstanceOf(DuplicateRfidTagException.class);
 
         verify(scanObjectRepository, never()).save(any());
+        verify(events, never()).publishEvent(any());
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.museotek.box.domain.scanobject.ScanObjectNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -22,7 +23,8 @@ class DeleteScanObjectUseCaseTest {
 
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
     private final ScanObjectRepository scanObjectRepository = mock(ScanObjectRepository.class);
-    private final DeleteScanObjectUseCase useCase = new DeleteScanObjectUseCase(orgAccessGuard, scanObjectRepository);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final DeleteScanObjectUseCase useCase = new DeleteScanObjectUseCase(orgAccessGuard, scanObjectRepository, events);
 
     @Test
     void success_deletesScanObject() {
@@ -32,6 +34,7 @@ class DeleteScanObjectUseCaseTest {
         when(scanObjectRepository.findByIdAndOrgId(1L, orgId)).thenReturn(Optional.of(card));
 
         useCase.execute(orgId, 1L);
+        verify(events).publishEvent(new CardsChangedEvent(orgId));
 
         verify(orgAccessGuard).requireAccess(orgId);
         verify(scanObjectRepository).delete(card);
@@ -45,6 +48,7 @@ class DeleteScanObjectUseCaseTest {
         assertThatThrownBy(() -> useCase.execute(orgId, 1L)).isInstanceOf(ScanObjectNotFoundException.class);
 
         verify(scanObjectRepository, never()).delete(any());
+        verify(events, never()).publishEvent(any());
     }
 
     @Test

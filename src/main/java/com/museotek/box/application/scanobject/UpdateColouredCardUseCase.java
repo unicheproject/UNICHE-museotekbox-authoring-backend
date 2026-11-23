@@ -6,6 +6,7 @@ import com.museotek.box.domain.scanobject.ColouredCard;
 import com.museotek.box.domain.scanobject.ScanObject;
 import com.museotek.box.domain.scanobject.ScanObjectNotFoundException;
 import com.museotek.box.infrastructure.repository.ScanObjectRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -16,11 +17,14 @@ public class UpdateColouredCardUseCase {
     private final OrgAccessGuard orgAccessGuard;
     private final ScanObjectSupport scanObjectSupport;
     private final ScanObjectRepository scanObjectRepository;
+    private final ApplicationEventPublisher events;
 
-    public UpdateColouredCardUseCase(OrgAccessGuard orgAccessGuard, ScanObjectSupport scanObjectSupport, ScanObjectRepository scanObjectRepository) {
+    public UpdateColouredCardUseCase(OrgAccessGuard orgAccessGuard, ScanObjectSupport scanObjectSupport, ScanObjectRepository scanObjectRepository,
+            ApplicationEventPublisher events) {
         this.orgAccessGuard = orgAccessGuard;
         this.scanObjectSupport = scanObjectSupport;
         this.scanObjectRepository = scanObjectRepository;
+        this.events = events;
     }
 
     public ColouredCard execute(UUID orgId, Long scanObjectId, String name, String rfidTag, boolean reusable, Long scanObjectTypeId, CardColour colour) {
@@ -39,6 +43,8 @@ public class UpdateColouredCardUseCase {
         card.setReusable(reusable);
         card.setScanObjectType(scanObjectSupport.resolveType(orgId, scanObjectTypeId));
         card.setColour(colour);
-        return scanObjectRepository.save(card);
+        ColouredCard saved = scanObjectRepository.save(card);
+        events.publishEvent(new CardsChangedEvent(orgId));
+        return saved;
     }
 }

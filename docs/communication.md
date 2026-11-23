@@ -108,8 +108,10 @@ A token or key is never put in a URL, because URLs end up in logs. On a websocke
 ### 6. A curator changes what a Box plays
 
 When an experience on a Box is published again, assigned, unassigned, deleted or restored, the tool tells that Box
-`sync.required` and its display `idle.changed`, after the change is saved. The Box downloads again (step 3.1); the
-display fetches `GET /display/idle` again.
+`sync.required` and its display `idle.changed`, after the change is saved. When a card type or a card (scan object)
+is created, changed or deleted, it tells every Box of that organisation and their displays the same, because every
+Box gets all of its organisation's cards. The Box downloads again (step 3.1); the display fetches
+`GET /display/idle` again.
 
 ### 7. When something drops
 
@@ -189,9 +191,9 @@ left does nothing. If the Box is not connected, the message is dropped.
 |---|---|---|---|
 | display | `state` | the Box's snapshot plus `mediaLinks` | the Box sent one; and right after the display connects |
 | display | `box.presence` | `{ "online" }` | after `hello`, and whenever the Box connects or drops |
-| display | `idle.changed` | `{}` | what the Box plays changed: fetch `/display/idle` again |
+| display | `idle.changed` | `{}` | what the Box plays or its cards changed: fetch `/display/idle` again |
 | Box | `display.presence` | `{ "connected" }` | after `hello`, and whenever the display connects or leaves |
-| Box | `sync.required` | `{}` | what the Box plays changed: download again |
+| Box | `sync.required` | `{}` | what the Box plays or its cards changed: download again |
 | both | `session.replaced` | `{}` | a newer connection took over; then closed (1008) |
 | both | `session.revoked` | `{}` | the token or key stopped working; then closed (1008) |
 | both | `error` | `{ "code", "message", "details", "requestId" }` | see `docs/error-codes.md` |
@@ -266,7 +268,5 @@ Connections, snapshots and media-link keys live in memory, so only one copy of t
 - **How a key gets onto a Box.** The CMS shows it once; installing it is up to the Box team.
 - **A display gone during a video.** `video.ended` then never arrives, and the Box would wait. The Box could time out
   on its own, or treat `display.presence` with `connected: false` as the video having ended.
-- **Card edits.** Changing cards or card types doesn't send `sync.required` yet; a connected Box picks them up on its
-  next sync (for example after reconnecting).
 - **Start card colour.** `/display/idle` gives each experience's start card by card type name; card types have no
   colour of their own.

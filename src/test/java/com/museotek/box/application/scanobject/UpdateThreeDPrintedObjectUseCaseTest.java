@@ -9,6 +9,7 @@ import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -28,7 +29,8 @@ class UpdateThreeDPrintedObjectUseCaseTest {
     private final ScanObjectRepository scanObjectRepository = mock(ScanObjectRepository.class);
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final ScanObjectSupport scanObjectSupport = new ScanObjectSupport(scanObjectRepository, scanObjectTypeRepository);
-    private final UpdateThreeDPrintedObjectUseCase useCase = new UpdateThreeDPrintedObjectUseCase(orgAccessGuard, scanObjectSupport, scanObjectRepository);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final UpdateThreeDPrintedObjectUseCase useCase = new UpdateThreeDPrintedObjectUseCase(orgAccessGuard, scanObjectSupport, scanObjectRepository, events);
 
     private ThreeDPrintedObject existingObject(UUID orgId, Long id, String rfidTag) {
         ThreeDPrintedObject object = new ThreeDPrintedObject();
@@ -49,6 +51,7 @@ class UpdateThreeDPrintedObjectUseCaseTest {
         when(scanObjectRepository.save(any(ThreeDPrintedObject.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ThreeDPrintedObject result = useCase.execute(orgId, 1L, "New name", "TAG-2", true, null, "models/new.glb");
+        verify(events).publishEvent(new CardsChangedEvent(orgId));
 
         verify(orgAccessGuard).requireAccess(orgId);
         assertThat(result.getName()).isEqualTo("New name");
@@ -82,6 +85,7 @@ class UpdateThreeDPrintedObjectUseCaseTest {
                 .isInstanceOf(DuplicateRfidTagException.class);
 
         verify(scanObjectRepository, never()).save(any());
+        verify(events, never()).publishEvent(any());
     }
 
     @Test

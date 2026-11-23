@@ -1,6 +1,7 @@
 package com.museotek.box.application.scanobjecttype;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.application.scanobject.CardsChangedEvent;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scanobject.ScanObjectTypeInUseException;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
@@ -11,6 +12,7 @@ import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
 import com.museotek.box.infrastructure.repository.SceneRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -30,9 +32,10 @@ class DeleteScanObjectTypeUseCaseTest {
     private final SceneRepository sceneRepository = mock(SceneRepository.class);
     private final RuleRepository ruleRepository = mock(RuleRepository.class);
     private final PublishedExperienceRepository publishedExperienceRepository = mock(PublishedExperienceRepository.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final DeleteScanObjectTypeUseCase useCase = new DeleteScanObjectTypeUseCase(
             orgAccessGuard, scanObjectTypeRepository, scanObjectRepository, sceneRepository, ruleRepository,
-            publishedExperienceRepository);
+            publishedExperienceRepository, events);
 
     private ScanObjectType existingType(UUID orgId) {
         ScanObjectType type = new ScanObjectType();
@@ -51,6 +54,7 @@ class DeleteScanObjectTypeUseCaseTest {
         when(ruleRepository.existsByScanObjectTypeId(1L)).thenReturn(false);
 
         useCase.execute(orgId, 1L);
+        verify(events).publishEvent(new CardsChangedEvent(orgId));
 
         verify(orgAccessGuard).requireAccess(orgId);
         verify(scanObjectTypeRepository).delete(type);
@@ -65,6 +69,7 @@ class DeleteScanObjectTypeUseCaseTest {
         assertThatThrownBy(() -> useCase.execute(orgId, 1L)).isInstanceOf(ScanObjectTypeInUseException.class);
 
         verify(scanObjectTypeRepository, never()).delete(org.mockito.ArgumentMatchers.any());
+        verify(events, never()).publishEvent(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

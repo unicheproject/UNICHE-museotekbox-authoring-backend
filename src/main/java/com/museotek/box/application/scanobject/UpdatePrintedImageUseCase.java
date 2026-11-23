@@ -5,6 +5,7 @@ import com.museotek.box.domain.scanobject.PrintedImage;
 import com.museotek.box.domain.scanobject.ScanObject;
 import com.museotek.box.domain.scanobject.ScanObjectNotFoundException;
 import com.museotek.box.infrastructure.repository.ScanObjectRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -15,11 +16,14 @@ public class UpdatePrintedImageUseCase {
     private final OrgAccessGuard orgAccessGuard;
     private final ScanObjectSupport scanObjectSupport;
     private final ScanObjectRepository scanObjectRepository;
+    private final ApplicationEventPublisher events;
 
-    public UpdatePrintedImageUseCase(OrgAccessGuard orgAccessGuard, ScanObjectSupport scanObjectSupport, ScanObjectRepository scanObjectRepository) {
+    public UpdatePrintedImageUseCase(OrgAccessGuard orgAccessGuard, ScanObjectSupport scanObjectSupport, ScanObjectRepository scanObjectRepository,
+            ApplicationEventPublisher events) {
         this.orgAccessGuard = orgAccessGuard;
         this.scanObjectSupport = scanObjectSupport;
         this.scanObjectRepository = scanObjectRepository;
+        this.events = events;
     }
 
     public PrintedImage execute(UUID orgId, Long scanObjectId, String name, String rfidTag, boolean reusable, Long scanObjectTypeId, String imageUrl) {
@@ -38,6 +42,8 @@ public class UpdatePrintedImageUseCase {
         printedImage.setReusable(reusable);
         printedImage.setScanObjectType(scanObjectSupport.resolveType(orgId, scanObjectTypeId));
         printedImage.setImageUrl(imageUrl);
-        return scanObjectRepository.save(printedImage);
+        PrintedImage saved = scanObjectRepository.save(printedImage);
+        events.publishEvent(new CardsChangedEvent(orgId));
+        return saved;
     }
 }

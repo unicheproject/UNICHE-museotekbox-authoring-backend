@@ -10,6 +10,7 @@ import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -29,7 +30,8 @@ class CreateThreeDPrintedObjectUseCaseTest {
     private final ScanObjectRepository scanObjectRepository = mock(ScanObjectRepository.class);
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final ScanObjectSupport scanObjectSupport = new ScanObjectSupport(scanObjectRepository, scanObjectTypeRepository);
-    private final CreateThreeDPrintedObjectUseCase useCase = new CreateThreeDPrintedObjectUseCase(orgAccessGuard, scanObjectSupport, scanObjectRepository);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final CreateThreeDPrintedObjectUseCase useCase = new CreateThreeDPrintedObjectUseCase(orgAccessGuard, scanObjectSupport, scanObjectRepository, events);
 
     @Test
     void success_savesThreeDPrintedObjectScopedToOrg() {
@@ -38,6 +40,7 @@ class CreateThreeDPrintedObjectUseCaseTest {
         when(scanObjectRepository.save(any(ThreeDPrintedObject.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ThreeDPrintedObject result = useCase.execute(orgId, "Muse Statue", "TAG-1", true, null, "models/statue.glb");
+        verify(events).publishEvent(new CardsChangedEvent(orgId));
 
         verify(orgAccessGuard).requireAccess(orgId);
         ArgumentCaptor<ThreeDPrintedObject> captor = ArgumentCaptor.forClass(ThreeDPrintedObject.class);
@@ -75,6 +78,7 @@ class CreateThreeDPrintedObjectUseCaseTest {
                 .isInstanceOf(DuplicateRfidTagException.class);
 
         verify(scanObjectRepository, never()).save(any());
+        verify(events, never()).publishEvent(any());
     }
 
     @Test

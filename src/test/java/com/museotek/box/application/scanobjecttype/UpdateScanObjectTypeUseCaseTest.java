@@ -1,11 +1,13 @@
 package com.museotek.box.application.scanobjecttype;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.application.scanobject.CardsChangedEvent;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -23,8 +25,9 @@ class UpdateScanObjectTypeUseCaseTest {
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final SpecialCardTypes specialCardTypes = mock(SpecialCardTypes.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final UpdateScanObjectTypeUseCase useCase =
-            new UpdateScanObjectTypeUseCase(orgAccessGuard, scanObjectTypeRepository, specialCardTypes);
+            new UpdateScanObjectTypeUseCase(orgAccessGuard, scanObjectTypeRepository, specialCardTypes, events);
 
     @Test
     void success_updatesName() {
@@ -37,6 +40,7 @@ class UpdateScanObjectTypeUseCaseTest {
         when(scanObjectTypeRepository.save(any(ScanObjectType.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ScanObjectType result = useCase.execute(orgId, 1L, "New name", null, null);
+        verify(events).publishEvent(new CardsChangedEvent(orgId));
 
         assertThat(result.getName()).isEqualTo("New name");
     }

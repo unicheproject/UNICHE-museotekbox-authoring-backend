@@ -8,6 +8,7 @@ import com.museotek.box.application.player.BoxPresenceUseCase;
 import com.museotek.box.application.player.DisplayMediaLinks;
 import com.museotek.box.application.player.PlayerBoxIdentity;
 import com.museotek.box.application.player.PlayerDisplayView;
+import com.museotek.box.application.scanobject.CardsChangedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -154,6 +155,22 @@ class Connections {
         for (Long boxId : event.boxIds()) {
             sendToBox(boxId, DeviceMessages.SYNC_REQUIRED, Map.of());
             sendToDisplay(boxId, DeviceMessages.IDLE_CHANGED, Map.of());
+        }
+    }
+
+    // Every Box of the org gets all the org's cards, so all of them sync. Its display too: start card names may change.
+    // fallbackExecution: most card edits save outside a transaction of their own.
+    @TransactionalEventListener(fallbackExecution = true)
+    public void onCardsChanged(CardsChangedEvent event) {
+        for (DeviceConnection<PlayerBoxIdentity> connection : boxes.values()) {
+            if (connection.device().orgId().equals(event.orgId())) {
+                connection.send(DeviceMessages.SYNC_REQUIRED, Map.of());
+            }
+        }
+        for (DeviceConnection<PlayerDisplayView> connection : displays.values()) {
+            if (connection.device().orgId().equals(event.orgId())) {
+                connection.send(DeviceMessages.IDLE_CHANGED, Map.of());
+            }
         }
     }
 

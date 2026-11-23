@@ -1,9 +1,11 @@
 package com.museotek.box.application.scanobjecttype;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.application.scanobject.CardsChangedEvent;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.domain.scanobject.ScanObjectTypeNotFoundException;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,12 +17,14 @@ public class UpdateScanObjectTypeUseCase {
     private final OrgAccessGuard orgAccessGuard;
     private final ScanObjectTypeRepository scanObjectTypeRepository;
     private final SpecialCardTypes specialCardTypes;
+    private final ApplicationEventPublisher events;
 
     public UpdateScanObjectTypeUseCase(OrgAccessGuard orgAccessGuard, ScanObjectTypeRepository scanObjectTypeRepository,
-                                       SpecialCardTypes specialCardTypes) {
+                                       SpecialCardTypes specialCardTypes, ApplicationEventPublisher events) {
         this.orgAccessGuard = orgAccessGuard;
         this.scanObjectTypeRepository = scanObjectTypeRepository;
         this.specialCardTypes = specialCardTypes;
+        this.events = events;
     }
 
     // universal / exit: null leaves the flag as it is.
@@ -41,6 +45,8 @@ public class UpdateScanObjectTypeUseCase {
             type.setExit(exit);
         }
         specialCardTypes.check(type, wasUniversal, wasExit);
-        return scanObjectTypeRepository.save(type);
+        ScanObjectType saved = scanObjectTypeRepository.save(type);
+        events.publishEvent(new CardsChangedEvent(orgId));
+        return saved;
     }
 }

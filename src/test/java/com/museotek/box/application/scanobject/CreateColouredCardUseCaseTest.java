@@ -11,6 +11,7 @@ import com.museotek.box.infrastructure.repository.ScanObjectRepository;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -30,7 +31,8 @@ class CreateColouredCardUseCaseTest {
     private final ScanObjectRepository scanObjectRepository = mock(ScanObjectRepository.class);
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final ScanObjectSupport scanObjectSupport = new ScanObjectSupport(scanObjectRepository, scanObjectTypeRepository);
-    private final CreateColouredCardUseCase useCase = new CreateColouredCardUseCase(orgAccessGuard, scanObjectSupport, scanObjectRepository);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final CreateColouredCardUseCase useCase = new CreateColouredCardUseCase(orgAccessGuard, scanObjectSupport, scanObjectRepository, events);
 
     @Test
     void success_savesColouredCardScopedToOrg() {
@@ -39,6 +41,7 @@ class CreateColouredCardUseCaseTest {
         when(scanObjectRepository.save(any(ColouredCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ColouredCard result = useCase.execute(orgId, "Muse Card", "TAG-1", true, null, CardColour.RED);
+        verify(events).publishEvent(new CardsChangedEvent(orgId));
 
         verify(orgAccessGuard).requireAccess(orgId);
         ArgumentCaptor<ColouredCard> captor = ArgumentCaptor.forClass(ColouredCard.class);
@@ -76,6 +79,7 @@ class CreateColouredCardUseCaseTest {
                 .isInstanceOf(DuplicateRfidTagException.class);
 
         verify(scanObjectRepository, never()).save(any());
+        verify(events, never()).publishEvent(any());
     }
 
     @Test

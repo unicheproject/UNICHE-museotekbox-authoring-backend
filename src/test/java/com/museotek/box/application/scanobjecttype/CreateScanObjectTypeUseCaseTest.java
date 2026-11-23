@@ -1,11 +1,13 @@
 package com.museotek.box.application.scanobjecttype;
 
 import com.museotek.box.application.orgaccess.OrgAccessGuard;
+import com.museotek.box.application.scanobject.CardsChangedEvent;
 import com.museotek.box.domain.scanobject.ScanObjectType;
 import com.museotek.box.infrastructure.catalogue.CatalogueForbiddenException;
 import com.museotek.box.infrastructure.repository.ScanObjectTypeRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.UUID;
 
@@ -22,8 +24,9 @@ class CreateScanObjectTypeUseCaseTest {
     private final OrgAccessGuard orgAccessGuard = mock(OrgAccessGuard.class);
     private final ScanObjectTypeRepository scanObjectTypeRepository = mock(ScanObjectTypeRepository.class);
     private final SpecialCardTypes specialCardTypes = mock(SpecialCardTypes.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final CreateScanObjectTypeUseCase useCase =
-            new CreateScanObjectTypeUseCase(orgAccessGuard, scanObjectTypeRepository, specialCardTypes);
+            new CreateScanObjectTypeUseCase(orgAccessGuard, scanObjectTypeRepository, specialCardTypes, events);
 
     @Test
     void success_savesTypeScopedToOrg() {
@@ -31,6 +34,7 @@ class CreateScanObjectTypeUseCaseTest {
         when(scanObjectTypeRepository.save(any(ScanObjectType.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ScanObjectType result = useCase.execute(orgId, "Muses", true, false);
+        verify(events).publishEvent(new CardsChangedEvent(orgId));
 
         verify(orgAccessGuard).requireAccess(orgId);
         ArgumentCaptor<ScanObjectType> captor = ArgumentCaptor.forClass(ScanObjectType.class);

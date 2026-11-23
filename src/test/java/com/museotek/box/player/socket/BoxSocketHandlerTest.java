@@ -12,6 +12,7 @@ import com.museotek.box.application.player.PlayerBoxIdentity;
 import com.museotek.box.application.player.PlayerDisplayView;
 import com.museotek.box.application.player.VerifyBoxKeyUseCase;
 import com.museotek.box.application.player.VerifyDisplayTokenUseCase;
+import com.museotek.box.application.scanobject.CardsChangedEvent;
 import com.museotek.box.domain.box.InvalidBoxKeyException;
 import com.museotek.box.player.PlayerSocketProperties;
 import com.museotek.box.player.PlayerTimer;
@@ -193,6 +194,22 @@ class BoxSocketHandlerTest {
         assertThat(box.lastMessage().get("type").asText()).isEqualTo("sync.required");
         assertThat(display.lastMessage().get("type").asText()).isEqualTo("idle.changed");
         assertThat(otherBox.sentMessages()).isEmpty();
+    }
+
+    @Test
+    void aCardChange_tellsEveryBoxOfThatOrgToSync_andTheirDisplaysToReload() {
+        FakeSession box = box();
+        FakeSession display = display();
+        doReturn(new PlayerBoxIdentity(9L, UUID.randomUUID())).when(verifyKey).execute("other-org-key");
+        FakeSession otherOrgBox = new FakeSession();
+        boxes.afterConnectionEstablished(otherOrgBox);
+        boxes.handleTextMessage(otherOrgBox, new TextMessage("{\"type\":\"hello\",\"payload\":{\"key\":\"other-org-key\"}}"));
+
+        connections.onCardsChanged(new CardsChangedEvent(BOX.orgId()));
+
+        assertThat(box.lastMessage().get("type").asText()).isEqualTo("sync.required");
+        assertThat(display.lastMessage().get("type").asText()).isEqualTo("idle.changed");
+        assertThat(types(otherOrgBox)).doesNotContain("sync.required");
     }
 
     @Test
