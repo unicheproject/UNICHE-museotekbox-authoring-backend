@@ -69,6 +69,27 @@ class PublishedContentMapperTest {
     }
 
     @Test
+    void boxMediaIds_keepSoundsFromTheStoredJson_leaveDisplayVideosOut() {
+        String json = mapper.toJson(mapper.toContent(quiz()));
+
+        assertThat(mapper.boxMediaIds(json)).containsExactly(sound.toString());
+    }
+
+    @Test
+    void boxMediaIds_keepBoxBlocks_andAFileUsedOnBothSides() {
+        UUID boxVideo = UUID.randomUUID();
+        String json = "{\"scenes\":[{\"blocks\":["
+                + "{\"type\":\"IMAGE\",\"content\":{\"mediaId\":\"" + video + "\"}},"
+                + "{\"type\":\"AUDIO\",\"content\":{\"mediaId\":\"" + sound + "\"}},"
+                + "{\"type\":\"BOX_VIDEO\",\"content\":{\"mediaId\":\"" + boxVideo + "\"}}],"
+                + "\"rules\":[{\"effects\":[{\"type\":\"REPLY\",\"media\":\"" + video
+                + "\",\"boxVideo\":\"" + video + "\"}]}]}]}";
+
+        assertThat(mapper.boxMediaIds(json)).containsExactlyInAnyOrder(sound.toString(), boxVideo.toString(),
+                video.toString());
+    }
+
+    @Test
     void cardTypeIds_listStartCardsAndScanRuleCards() {
         PublishedContent content = mapper.toContent(quiz());
 

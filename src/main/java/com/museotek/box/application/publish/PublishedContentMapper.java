@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.museotek.box.application.experience.ExperienceView;
 import com.museotek.box.domain.block.Block;
+import com.museotek.box.domain.block.BlockType;
 import com.museotek.box.domain.experience.ExperienceVariable;
 import com.museotek.box.domain.rule.Rule;
 import com.museotek.box.domain.rule.RuleEffect;
@@ -65,6 +66,32 @@ public class PublishedContentMapper {
         return new ArrayList<>(ids);
     }
 
+    /**
+     * The media ids the Box plays itself, read from a stored copy's JSON: {@code AUDIO} and {@code BOX_VIDEO} blocks,
+     * and an effect's {@code audio}, {@code boxVideo} and {@code url} (BOX_AUDIO). Pictures and videos on the display
+     * are left out: the display fetches those from the tool, so the Box never needs them.
+     */
+    public Set<String> boxMediaIds(String contentJson) {
+        Set<String> ids = new TreeSet<>();
+        JsonNode content = readJson(contentJson);
+        for (JsonNode scene : content.path("scenes")) {
+            for (JsonNode block : scene.path("blocks")) {
+                String type = block.path("type").asText();
+                if (BlockType.AUDIO.name().equals(type) || BlockType.BOX_VIDEO.name().equals(type)) {
+                    addIfUuid(ids, textOrNull(block.path("content").path("mediaId")));
+                }
+            }
+            for (JsonNode rule : scene.path("rules")) {
+                for (JsonNode effect : rule.path("effects")) {
+                    addIfUuid(ids, textOrNull(effect.path("audio")));
+                    addIfUuid(ids, textOrNull(effect.path("boxVideo")));
+                    addIfUuid(ids, textOrNull(effect.path("url")));
+                }
+            }
+        }
+        return ids;
+    }
+
     // Every scan object type the content points at: start cards and the cards SCAN rules wait for.
     public List<Long> cardTypeIds(PublishedContent content) {
         Set<Long> ids = new TreeSet<>();
@@ -92,6 +119,22 @@ public class PublishedContentMapper {
             // Can't happen: the content comes from a jsonb column.
             throw new IllegalStateException("Block " + block.blockKey() + " content is not JSON", e);
         }
+    }
+
+    private JsonNode readJson(String json) {
+        try {
+            return objectMapper.readTree(json);
+        } catch (JsonProcessingException e) {
+            // Can't happen: the content comes from a jsonb column.
+            throw new IllegalStateException("A published copy's content is not JSON", e);
+        }
+    }
+
+    private static String textOrNull(JsonNode node) {
+        if (!node.isTextual()) {
+            return null;
+        }
+        return node.asText();
     }
 
     private static void addIfUuid(Set<String> ids, String value) {

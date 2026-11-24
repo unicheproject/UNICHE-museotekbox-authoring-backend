@@ -1,5 +1,7 @@
 package com.museotek.box.application.player;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.museotek.box.application.publish.PublishedContentMapper;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.experience.ExperienceOutput;
 import com.museotek.box.domain.media.Media;
@@ -33,7 +35,8 @@ class GetExperienceForPlayerQueryTest {
     private final PublishedExperienceRepository publishedExperienceRepository = mock(PublishedExperienceRepository.class);
     private final MediaRepository mediaRepository = mock(MediaRepository.class);
     private final GetExperienceForPlayerQuery query = new GetExperienceForPlayerQuery(
-            boxRepository, projectRepository, publishedExperienceRepository, mediaRepository);
+            boxRepository, projectRepository, publishedExperienceRepository, mediaRepository,
+            new PublishedContentMapper(new ObjectMapper()));
 
     private final UUID projectId = UUID.randomUUID();
     private final Project project = new Project();
@@ -47,26 +50,46 @@ class GetExperienceForPlayerQueryTest {
     }
 
     @Test
-    void theLatestCopy_comesWithItsMedia() {
-        UUID mediaId = UUID.randomUUID();
-        Media media = new Media();
-        media.setId(mediaId);
-        media.setKind(MediaKind.VIDEO);
-        media.setContentType("video/mp4");
-        media.setSizeBytes(1234L);
-        media.setSha256("ab12");
+    void theLatestCopy_comesWithTheMediaTheBoxPlays() {
+        UUID sound = UUID.randomUUID();
+        Media media = media(sound, MediaKind.AUDIO, "audio/mpeg");
+        String content = "{\"scenes\":[{\"blocks\":[{\"type\":\"AUDIO\",\"content\":{\"mediaId\":\"" + sound
+                + "\"}}],\"rules\":[]}]}";
         when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId)).thenReturn(Optional.of(
-                new PublishedExperience(project, 4, "Wing", ExperienceOutput.DISPLAY, 7L, "{\"scenes\":[]}",
-                        List.of(mediaId.toString()), List.of(7L), PUBLISHED, "someone")));
-        when(mediaRepository.findAllById(List.of(mediaId))).thenReturn(List.of(media));
+                new PublishedExperience(project, 4, "Wing", ExperienceOutput.DISPLAY, 7L, content,
+                        List.of(sound.toString()), List.of(7L), PUBLISHED, "someone")));
+        when(mediaRepository.findAllById(List.of(sound))).thenReturn(List.of(media));
 
         PlayerExperienceCopy copy = query.execute(1L, projectId);
 
         assertThat(copy.experience()).isEqualTo(new PlayerExperience(projectId, "Wing", 4, ExperienceOutput.DISPLAY, 7L));
         assertThat(copy.publishedAt()).isEqualTo(PUBLISHED);
-        assertThat(copy.content()).isEqualTo("{\"scenes\":[]}");
+        assertThat(copy.content()).isEqualTo(content);
         assertThat(copy.media()).containsExactly(
-                new PlayerExperienceCopy.MediaFile(mediaId, MediaKind.VIDEO, "video/mp4", 1234L, "ab12"));
+                new PlayerExperienceCopy.MediaFile(sound, MediaKind.AUDIO, "audio/mpeg", 1234L, "ab12"));
+    }
+
+    @Test
+    void displayPicturesAndVideos_areLeftOutOfTheList() {
+        UUID video = UUID.randomUUID();
+        UUID picture = UUID.randomUUID();
+        UUID boxVideo = UUID.randomUUID();
+        UUID replySound = UUID.randomUUID();
+        String content = "{\"scenes\":[{\"blocks\":["
+                + "{\"type\":\"VIDEO\",\"content\":{\"mediaId\":\"" + video + "\"}},"
+                + "{\"type\":\"BOX_VIDEO\",\"content\":{\"mediaId\":\"" + boxVideo + "\"}}],"
+                + "\"rules\":[{\"effects\":[{\"type\":\"REPLY\",\"media\":\"" + picture
+                + "\",\"audio\":\"" + replySound + "\"}]}]}]}";
+        when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId)).thenReturn(Optional.of(
+                new PublishedExperience(project, 4, "Wing", ExperienceOutput.DISPLAY, 7L, content,
+                        List.of(video.toString(), picture.toString(), boxVideo.toString(), replySound.toString()),
+                        List.of(7L), PUBLISHED, "someone")));
+        when(mediaRepository.findAllById(List.of(boxVideo, replySound))).thenReturn(List.of(
+                media(boxVideo, MediaKind.VIDEO, "video/mp4"), media(replySound, MediaKind.AUDIO, "audio/mpeg")));
+
+        PlayerExperienceCopy copy = query.execute(1L, projectId);
+
+        assertThat(copy.media()).extracting(PlayerExperienceCopy.MediaFile::id).containsExactly(boxVideo, replySound);
     }
 
     @Test
@@ -95,5 +118,15 @@ class GetExperienceForPlayerQueryTest {
         when(publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> query.execute(1L, projectId)).isInstanceOf(ExperienceNotPublishedException.class);
+    }
+
+    private static Media media(UUID id, MediaKind kind, String contentType) {
+        Media media = new Media();
+        media.setId(id);
+        media.setKind(kind);
+        media.setContentType(contentType);
+        media.setSizeBytes(1234L);
+        media.setSha256("ab12");
+        return media;
     }
 }

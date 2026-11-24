@@ -1,5 +1,6 @@
 package com.museotek.box.application.player;
 
+import com.museotek.box.application.publish.PublishedContentMapper;
 import com.museotek.box.domain.box.BoxNotFoundException;
 import com.museotek.box.domain.media.Media;
 import com.museotek.box.domain.project.Project;
@@ -13,11 +14,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * The latest published copy of an experience on a Box, with its media list. Only for experiences assigned to that Box
- * and not deleted, so the player project can't read another museum's content through a Box id it doesn't run.
+ * The latest published copy of an experience on a Box, with the media the Box plays itself (sounds, Box videos). Only
+ * for experiences assigned to that Box and not deleted, so the player project can't read another museum's content
+ * through a Box id it doesn't run. Display pictures and videos are left out of the list: the display fetches them.
  */
 @Service
 public class GetExperienceForPlayerQuery {
@@ -26,17 +29,20 @@ public class GetExperienceForPlayerQuery {
     private final ProjectRepository projectRepository;
     private final PublishedExperienceRepository publishedExperienceRepository;
     private final MediaRepository mediaRepository;
+    private final PublishedContentMapper contentMapper;
 
     public GetExperienceForPlayerQuery(
             BoxRepository boxRepository,
             ProjectRepository projectRepository,
             PublishedExperienceRepository publishedExperienceRepository,
-            MediaRepository mediaRepository
+            MediaRepository mediaRepository,
+            PublishedContentMapper contentMapper
     ) {
         this.boxRepository = boxRepository;
         this.projectRepository = projectRepository;
         this.publishedExperienceRepository = publishedExperienceRepository;
         this.mediaRepository = mediaRepository;
+        this.contentMapper = contentMapper;
     }
 
     @Transactional(readOnly = true)
@@ -54,7 +60,11 @@ public class GetExperienceForPlayerQuery {
         PublishedExperience latest = publishedExperienceRepository.findTopByProjectIdOrderByVersionDesc(projectId)
                 .orElseThrow(() -> notOnBox(boxId, projectId));
 
-        List<UUID> mediaIds = latest.getMediaIds().stream().map(UUID::fromString).toList();
+        Set<String> boxMediaIds = contentMapper.boxMediaIds(latest.getContent());
+        List<UUID> mediaIds = latest.getMediaIds().stream()
+                .filter(boxMediaIds::contains)
+                .map(UUID::fromString)
+                .toList();
         List<PlayerExperienceCopy.MediaFile> media = mediaRepository.findAllById(mediaIds).stream()
                 .map(GetExperienceForPlayerQuery::file)
                 .toList();
