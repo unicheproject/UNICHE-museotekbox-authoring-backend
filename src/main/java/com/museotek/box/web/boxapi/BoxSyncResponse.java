@@ -1,19 +1,21 @@
 package com.museotek.box.web.boxapi;
 
 import com.museotek.box.application.player.PlayerBoxView;
-import com.museotek.box.application.player.PlayerExperience;
 import com.museotek.box.application.player.PlayerScanObject;
 
 import java.util.List;
 
 /**
- * What a Box keeps in step with: itself, the latest copy of each experience on it (download one when its version
- * changes), the org's card types and which tag is which card.
+ * Everything a Box runs, in one answer: itself, the latest copy of each experience on it (content and the media the
+ * Box plays itself), the org's card types and which tag is which card. Files come separately, from
+ * {@code /box/media/{mediaId}/content}.
  */
-public record BoxSyncResponse(PlayerBoxView.BoxSummary box, List<PlayerExperience> experiences,
+public record BoxSyncResponse(PlayerBoxView.BoxSummary box, List<BoxExperienceResponse> experiences,
                               List<PlayerBoxView.CardType> cardTypes, List<PlayerScanObject> scanObjects) {
 
     public static BoxSyncResponse from(PlayerBoxView view) {
-        return new BoxSyncResponse(view.box(), view.experiences(), view.cardTypes(), view.scanObjects());
+        return new BoxSyncResponse(view.box(),
+                view.experiences().stream().map(BoxExperienceResponse::from).toList(),
+                view.cardTypes(), view.scanObjects());
     }
 }

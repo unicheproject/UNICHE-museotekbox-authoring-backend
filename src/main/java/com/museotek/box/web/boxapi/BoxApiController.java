@@ -2,7 +2,6 @@ package com.museotek.box.web.boxapi;
 
 import com.museotek.box.application.media.GetMediaContentQuery.MediaContent;
 import com.museotek.box.application.player.GetBoxForPlayerQuery;
-import com.museotek.box.application.player.GetExperienceForPlayerQuery;
 import com.museotek.box.application.player.GetMediaOnBoxQuery;
 import com.museotek.box.application.player.PlayerBoxIdentity;
 import org.springframework.core.io.Resource;
@@ -30,26 +29,17 @@ import java.util.concurrent.TimeUnit;
 public class BoxApiController {
 
     private final GetBoxForPlayerQuery boxQuery;
-    private final GetExperienceForPlayerQuery experienceQuery;
     private final GetMediaOnBoxQuery mediaQuery;
 
-    public BoxApiController(GetBoxForPlayerQuery boxQuery, GetExperienceForPlayerQuery experienceQuery,
-                            GetMediaOnBoxQuery mediaQuery) {
+    public BoxApiController(GetBoxForPlayerQuery boxQuery, GetMediaOnBoxQuery mediaQuery) {
         this.boxQuery = boxQuery;
-        this.experienceQuery = experienceQuery;
         this.mediaQuery = mediaQuery;
     }
 
+    // Everything the Box runs, files apart: called at every start, reconnect and sync.required.
     @GetMapping("/sync")
     public BoxSyncResponse sync(@AuthenticationPrincipal PlayerBoxIdentity box) {
         return BoxSyncResponse.from(boxQuery.execute(box.boxId()));
-    }
-
-    // 404 EXPERIENCE_NOT_PUBLISHED for an experience that isn't (or is no longer) on this Box.
-    @GetMapping("/experiences/{projectId}")
-    public BoxExperienceResponse experience(@AuthenticationPrincipal PlayerBoxIdentity box,
-                                               @PathVariable UUID projectId) {
-        return BoxExperienceResponse.from(experienceQuery.execute(box.boxId(), projectId));
     }
 
     // 404 MEDIA_NOT_FOUND for media no experience on this Box uses. Range support from the Resource body, and

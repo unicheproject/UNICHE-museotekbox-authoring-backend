@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * One experience's latest copy, as a Box downloads it. {@code content} is the stored PublishedContent
- * JSON, passed through as JSON rather than as a string.
+ * One experience's latest copy, as a Box gets it in {@code /box/sync}. {@code content} is the stored PublishedContent
+ * JSON, passed through as JSON rather than as a string; {@code media} lists only the files the Box plays itself.
  */
 public record BoxExperienceResponse(UUID projectId, String name, int version, ExperienceOutput output,
                                        Long startCardTypeId, Instant publishedAt, @JsonRawValue String content,

@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Everything a Box needs to run, apart from the experiences' content. Plain values only, no entities, so the player
- * package can hold and send it.
+ * Everything a Box needs to run: itself, its experiences with their content and Box media, the card types and which
+ * tag is which card. Plain values only, no entities, so the player package can hold and send it.
  */
-public record PlayerBoxView(BoxSummary box, List<PlayerExperience> experiences, List<CardType> cardTypes,
+public record PlayerBoxView(BoxSummary box, List<PlayerExperienceCopy> experiences, List<CardType> cardTypes,
                             List<PlayerScanObject> scanObjects) {
 
     /** The Box itself. No serial number: it is private and nobody downstream needs it. */

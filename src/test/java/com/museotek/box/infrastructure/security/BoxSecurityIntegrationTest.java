@@ -139,13 +139,9 @@ class BoxSecurityIntegrationTest {
     }
 
     @Test
-    void experiencesAndMediaNotOnTheBox_are404() throws Exception {
+    void mediaNotOnTheBox_is404() throws Exception {
         KeyedBox box = newBox("Hall A");
 
-        mockMvc.perform(get("/box/experiences/{projectId}", UUID.randomUUID())
-                        .header(HttpHeaders.AUTHORIZATION, bearer(box.key())))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("EXPERIENCE_NOT_PUBLISHED"));
         mockMvc.perform(get("/box/media/{mediaId}/content", UUID.randomUUID())
                         .header(HttpHeaders.AUTHORIZATION, bearer(box.key())))
                 .andExpect(status().isNotFound())
