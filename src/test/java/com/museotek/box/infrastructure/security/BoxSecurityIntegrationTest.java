@@ -63,12 +63,12 @@ class BoxSecurityIntegrationTest {
     }
 
     private KeyedBox newBox(String name) {
-        String key = SecretTokens.newToken();
+        String key = SecretTokens.newBoxKey();
         Box box = new Box();
         box.setOrgId(UUID.randomUUID());
         box.setName(name);
         box.setSerialNumber("SN-" + UUID.randomUUID());
-        box.setKeyHash(SecretTokens.sha256Hex(key));
+        box.setKeyHash(SecretTokens.boxKeyHash(key));
         box.setKeyCreatedAt(Instant.now());
         return new KeyedBox(boxRepository.save(box), key);
     }
@@ -95,7 +95,7 @@ class BoxSecurityIntegrationTest {
         mockMvc.perform(get("/box/sync"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("BOX_KEY_INVALID"));
-        mockMvc.perform(get("/box/sync").header(HttpHeaders.AUTHORIZATION, bearer(SecretTokens.newToken())))
+        mockMvc.perform(get("/box/sync").header(HttpHeaders.AUTHORIZATION, bearer(SecretTokens.newBoxKey())))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("BOX_KEY_INVALID"));
     }
@@ -103,7 +103,7 @@ class BoxSecurityIntegrationTest {
     @Test
     void aReplacedKey_stopsWorking() throws Exception {
         KeyedBox box = newBox("Hall A");
-        box.box().setKeyHash(SecretTokens.sha256Hex(SecretTokens.newToken()));
+        box.box().setKeyHash(SecretTokens.boxKeyHash(SecretTokens.newBoxKey()));
         boxRepository.save(box.box());
 
         mockMvc.perform(get("/box/sync").header(HttpHeaders.AUTHORIZATION, bearer(box.key())))

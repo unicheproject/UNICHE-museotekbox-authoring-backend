@@ -83,12 +83,12 @@ class BoxSocketIntegrationTest {
     }
 
     private KeyedBox newBox() {
-        String key = SecretTokens.newToken();
+        String key = SecretTokens.newBoxKey();
         Box box = new Box();
         box.setOrgId(UUID.randomUUID());
         box.setName("Hall A box");
         box.setSerialNumber("SN-" + UUID.randomUUID());
-        box.setKeyHash(SecretTokens.sha256Hex(key));
+        box.setKeyHash(SecretTokens.boxKeyHash(key));
         box.setKeyCreatedAt(Instant.now());
         return new KeyedBox(boxRepository.save(box).getId(), key);
     }
@@ -237,7 +237,7 @@ class BoxSocketIntegrationTest {
     void aWrongKey_isRefused() throws Exception {
         Client client = connect("/ws/box", null);
 
-        client.send("{\"type\":\"hello\",\"payload\":{\"key\":\"" + SecretTokens.newToken() + "\"}}");
+        client.send("{\"type\":\"hello\",\"payload\":{\"key\":\"" + SecretTokens.newBoxKey() + "\"}}");
 
         assertThat(client.next().get("payload").get("code").asText()).isEqualTo("BOX_KEY_INVALID");
         assertThat(client.closeStatus()).isEqualTo(CloseStatus.POLICY_VIOLATION.withReason("BOX_KEY_INVALID"));

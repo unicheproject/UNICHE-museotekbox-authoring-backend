@@ -59,9 +59,9 @@ class BoxKeyUseCasesTest {
         CreatedBoxKey created = create.execute(orgId, 12L);
 
         verify(orgAccessGuard).requireManager(orgId);
-        assertThat(created.key()).hasSize(43);
+        assertThat(created.key()).hasSize(19).contains("-");
         assertThat(created.createdAt()).isEqualTo(NOW);
-        assertThat(box.getKeyHash()).isEqualTo(SecretTokens.sha256Hex(created.key()));
+        assertThat(box.getKeyHash()).isEqualTo(SecretTokens.boxKeyHash(created.key()));
         assertThat(box.getKeyCreatedAt()).isEqualTo(NOW);
         // The first key replaces nothing, so no connection needs closing.
         verify(events, never()).publishEvent(any());
@@ -69,11 +69,11 @@ class BoxKeyUseCasesTest {
 
     @Test
     void create_again_replacesTheOldKey_andSaysSo() {
-        String oldHash = SecretTokens.sha256Hex(create.execute(orgId, 12L).key());
+        String oldHash = SecretTokens.boxKeyHash(create.execute(orgId, 12L).key());
 
         String newKey = create.execute(orgId, 12L).key();
 
-        assertThat(box.getKeyHash()).isEqualTo(SecretTokens.sha256Hex(newKey)).isNotEqualTo(oldHash);
+        assertThat(box.getKeyHash()).isEqualTo(SecretTokens.boxKeyHash(newKey)).isNotEqualTo(oldHash);
         verify(events).publishEvent(new BoxKeyChangedEvent(12L));
     }
 
@@ -121,11 +121,12 @@ class BoxKeyUseCasesTest {
     }
 
     @Test
-    void verify_aKnownKey_answersItsBoxAndOrg_anUnknownOneIsRefused() {
+    void verify_aKnownKey_answersItsBoxAndOrg_evenAsTyped_anUnknownOneIsRefused() {
         when(boxRepository.findByKeyHash(anyString())).thenReturn(Optional.empty());
-        when(boxRepository.findByKeyHash(SecretTokens.sha256Hex("the-key"))).thenReturn(Optional.of(box));
+        when(boxRepository.findByKeyHash(SecretTokens.boxKeyHash("K7QM-3XRD-9F01-2HWB"))).thenReturn(Optional.of(box));
 
-        assertThat(verifyKey.execute("the-key")).isEqualTo(new PlayerBoxIdentity(12L, orgId));
+        assertThat(verifyKey.execute("K7QM-3XRD-9F01-2HWB")).isEqualTo(new PlayerBoxIdentity(12L, orgId));
+        assertThat(verifyKey.execute("k7qm 3xrd 9fol 2hwb")).isEqualTo(new PlayerBoxIdentity(12L, orgId));
         assertThatThrownBy(() -> verifyKey.execute("wrong")).isInstanceOf(InvalidBoxKeyException.class);
     }
 }

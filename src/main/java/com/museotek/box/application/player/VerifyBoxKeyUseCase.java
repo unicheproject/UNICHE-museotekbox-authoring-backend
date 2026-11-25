@@ -17,7 +17,7 @@ public class VerifyBoxKeyUseCase {
     }
 
     public PlayerBoxIdentity execute(String key) {
-        Box box = boxRepository.findByKeyHash(SecretTokens.sha256Hex(key))
+        Box box = boxRepository.findByKeyHash(SecretTokens.boxKeyHash(key))
                 .orElseThrow(() -> new InvalidBoxKeyException("Unknown, replaced or removed box key"));
         return new PlayerBoxIdentity(box.getId(), box.getOrgId());
     }

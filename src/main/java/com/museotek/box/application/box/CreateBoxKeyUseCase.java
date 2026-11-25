@@ -42,9 +42,9 @@ public class CreateBoxKeyUseCase {
         Box box = boxRepository.findByIdAndOrgId(boxId, orgId)
                 .orElseThrow(() -> new BoxNotFoundException("No box " + boxId + " for org " + orgId));
         boolean replacing = box.getKeyHash() != null;
-        String key = SecretTokens.newToken();
+        String key = SecretTokens.newBoxKey();
         Instant now = clock.instant();
-        box.setKeyHash(SecretTokens.sha256Hex(key));
+        box.setKeyHash(SecretTokens.boxKeyHash(key));
         box.setKeyCreatedAt(now);
         if (replacing) {
             events.publishEvent(new BoxKeyChangedEvent(boxId));
